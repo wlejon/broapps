@@ -18,6 +18,8 @@ public:
     std::vector<AppInfo> search(std::string_view query) const override;
     std::vector<AppInfo> find_by_category(std::string_view category) const override;
     std::vector<AppInfo> find_by_mime_type(std::string_view mime_type) const override;
+    // CatalogConfig::extra_search_paths; platform catalogs add their own locations.
+    std::vector<std::filesystem::path> source_directories() const override;
 
 protected:
     void set_apps(std::vector<AppInfo> apps);

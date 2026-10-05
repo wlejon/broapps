@@ -1,5 +1,5 @@
 #include "mac_recent_service.h"
-#include "src/common/mime_table.h"
+#include <brovfs/mime.h>
 
 #if defined(__APPLE__)
 #import <Foundation/Foundation.h>
@@ -88,7 +88,7 @@ bool MacRecentService::add_recent_item(const std::filesystem::path& file_path, c
     new_item.file_path = file_path;
     new_item.display_name = file_path.filename().string();
     new_item.uri = "file://" + file_path.generic_string();
-    new_item.mime_type = lookup_mime_by_extension(file_path.extension().string());
+    new_item.mime_type = bro::vfs::MimeDatabase::system().type_for_file(file_path).mime;
     new_item.app_id = app_id;
     new_item.timestamp = std::chrono::system_clock::now();
 

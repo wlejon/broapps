@@ -1,28 +1,34 @@
 #include "mime_service_base.h"
 
+#include <brovfs/mime.h>
+
 namespace broapps {
 
 MimeServiceBase::MimeServiceBase(std::shared_ptr<AppCatalog> catalog)
     : catalog_(std::move(catalog)) {}
 
 std::optional<AppInfo> MimeServiceBase::get_default_app_for_file(const std::filesystem::path& file_path) {
-    std::string ext = file_path.extension().string();
-    std::string mime = extension_to_mime(ext);
-    return get_default_app_for_mime(mime);
+    return get_default_app_for_mime(mime_for_file(file_path));
 }
 
 std::vector<AppInfo> MimeServiceBase::get_candidates_for_file(const std::filesystem::path& file_path) {
-    std::string ext = file_path.extension().string();
-    std::string mime = extension_to_mime(ext);
-    return get_candidates_for_mime(mime);
+    return get_candidates_for_mime(mime_for_file(file_path));
+}
+
+std::string MimeServiceBase::mime_for_file(const std::filesystem::path& file_path) const {
+    return bro::vfs::MimeDatabase::system().type_for_file(file_path).mime;
 }
 
 std::string MimeServiceBase::extension_to_mime(std::string_view extension) const {
-    return lookup_mime_by_extension(extension);
+    return bro::vfs::MimeDatabase::system().type_for_extension(extension);
 }
 
 std::vector<std::string> MimeServiceBase::mime_to_extensions(std::string_view mime_type) const {
-    return lookup_extensions_by_mime(mime_type);
+    std::vector<std::string> out;
+    for (auto& ext : bro::vfs::MimeDatabase::system().extensions_for_type(mime_type)) {
+        out.push_back("." + ext);
+    }
+    return out;
 }
 
 std::optional<AppInfo> MimeServiceBase::find_app_in_catalog(std::string_view id_or_path) {

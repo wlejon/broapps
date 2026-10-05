@@ -33,61 +33,10 @@ std::string uti_from_mime(std::string_view mime) {
     return uti;
 }
 
-std::string uti_from_ext(std::string_view ext) {
-    if (ext.starts_with('.')) ext.remove_prefix(1);
-    CFStringRef ext_cf = CFStringCreateWithCString(nullptr, std::string(ext).c_str(), kCFStringEncodingUTF8);
-    if (!ext_cf) return {};
-    CFStringRef uti_cf = UTTypeCreatePreferredIdentifierForTag(kUTTagClassFilenameExtension, ext_cf, nullptr);
-    CFRelease(ext_cf);
-    if (!uti_cf) return {};
-    std::string uti = cf_to_string(uti_cf);
-    CFRelease(uti_cf);
-    return uti;
-}
-
-std::string mime_from_uti(std::string_view uti) {
-    CFStringRef uti_cf = CFStringCreateWithCString(nullptr, std::string(uti).c_str(), kCFStringEncodingUTF8);
-    if (!uti_cf) return {};
-    CFStringRef mime_cf = UTTypeCopyPreferredTagWithClass(uti_cf, kUTTagClassMIMEType);
-    CFRelease(uti_cf);
-    if (!mime_cf) return {};
-    std::string mime = cf_to_string(mime_cf);
-    CFRelease(mime_cf);
-    return mime;
-}
-
 }  // namespace
 
 MacMimeService::MacMimeService(std::shared_ptr<AppCatalog> catalog)
     : MimeServiceBase(std::move(catalog)) {}
-
-std::string MacMimeService::extension_to_mime(std::string_view extension) const {
-    std::string uti = uti_from_ext(extension);
-    if (!uti.empty()) {
-        std::string m = mime_from_uti(uti);
-        if (!m.empty()) return m;
-    }
-    return lookup_mime_by_extension(extension);
-}
-
-std::vector<std::string> MacMimeService::mime_to_extensions(std::string_view mime_type) const {
-    std::string uti = uti_from_mime(mime_type);
-    if (!uti.empty()) {
-        CFStringRef uti_cf = CFStringCreateWithCString(nullptr, uti.c_str(), kCFStringEncodingUTF8);
-        if (uti_cf) {
-            CFStringRef ext_cf = UTTypeCopyPreferredTagWithClass(uti_cf, kUTTagClassFilenameExtension);
-            CFRelease(uti_cf);
-            if (ext_cf) {
-                std::string ext = cf_to_string(ext_cf);
-                CFRelease(ext_cf);
-                if (!ext.empty()) {
-                    return {"." + ext};
-                }
-            }
-        }
-    }
-    return lookup_extensions_by_mime(mime_type);
-}
 
 std::optional<AppInfo> MacMimeService::get_default_app_for_mime(std::string_view mime_type) {
     std::string uti = uti_from_mime(mime_type);

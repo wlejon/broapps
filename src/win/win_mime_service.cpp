@@ -25,28 +25,19 @@ std::string to_lower_str(std::string_view sv) {
 WinMimeService::WinMimeService(std::shared_ptr<AppCatalog> catalog)
     : MimeServiceBase(std::move(catalog)) {}
 
-std::string WinMimeService::extension_to_mime(std::string_view extension) const {
-    std::string mime = query_registry_mime(extension);
-    if (!mime.empty()) return mime;
-    return lookup_mime_by_extension(extension);
-}
-
-std::vector<std::string> WinMimeService::mime_to_extensions(std::string_view mime_type) const {
-    std::vector<std::string> exts;
-    std::string reg_ext = query_registry_extension_for_mime(mime_type);
-    if (!reg_ext.empty()) {
-        exts.push_back(reg_ext);
-    }
-    auto table_exts = lookup_extensions_by_mime(mime_type);
-    for (auto& te : table_exts) {
-        if (std::find(exts.begin(), exts.end(), te) == exts.end()) {
-            exts.push_back(std::move(te));
-        }
-    }
-    return exts;
-}
-
 std::optional<AppInfo> WinMimeService::get_default_app_for_mime(std::string_view mime_type) {
+    if (auto app = registered_default(mime_type)) return app;
+
+    auto cands = get_candidates_for_mime(mime_type);
+    if (!cands.empty()) return cands.front();
+
+    return std::nullopt;
+}
+
+// The registry's default handler only. get_candidates_for_mime starts from this; it must not
+// fall back to the candidates itself (the two used to recurse into each other forever when a
+// type had no registered default).
+std::optional<AppInfo> WinMimeService::registered_default(std::string_view mime_type) const {
     auto exts = mime_to_extensions(mime_type);
     for (const auto& ext : exts) {
         auto assoc = query_registry_associations(ext);
@@ -92,9 +83,6 @@ std::optional<AppInfo> WinMimeService::get_default_app_for_mime(std::string_view
         }
     }
 
-    auto cands = get_candidates_for_mime(mime_type);
-    if (!cands.empty()) return cands.front();
-
     return std::nullopt;
 }
 
@@ -102,7 +90,7 @@ std::vector<AppInfo> WinMimeService::get_candidates_for_mime(std::string_view mi
     std::vector<AppInfo> results;
     std::unordered_set<std::string> seen_exes;
 
-    auto def_app = get_default_app_for_mime(mime_type);
+    auto def_app = registered_default(mime_type);
     if (def_app) {
         seen_exes.insert(to_lower_str(def_app->executable_path));
         results.push_back(std::move(*def_app));

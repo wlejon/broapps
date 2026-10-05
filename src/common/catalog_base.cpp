@@ -146,6 +146,12 @@ int score_app(const AppInfo& app, const std::vector<std::string>& terms, std::st
 CatalogBase::CatalogBase(CatalogConfig config)
     : config_(std::move(config)) {}
 
+std::vector<std::filesystem::path> CatalogBase::source_directories() const {
+    std::vector<std::filesystem::path> out;
+    for (const auto& p : config_.extra_search_paths) out.emplace_back(p);
+    return out;
+}
+
 void CatalogBase::set_apps(std::vector<AppInfo> apps) {
     std::lock_guard<std::mutex> lock(mutex_);
     apps_ = std::move(apps);

@@ -1,7 +1,7 @@
 #include "win_recent_service.h"
 #include "lnk_parser.h"
 #include "com_init.h"
-#include "src/common/mime_table.h"
+#include <brovfs/mime.h>
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -76,7 +76,8 @@ std::vector<RecentItem> WinRecentService::get_recent_items(size_t limit) {
         item.file_path = std::filesystem::path(parsed->executable_path);
         item.display_name = parsed->name;
         item.uri = "file:///" + item.file_path.generic_string();
-        item.mime_type = lookup_mime_by_extension(item.file_path.extension().string());
+        // By name only: a recent list can name files on slow or disconnected volumes.
+        item.mime_type = bro::vfs::MimeDatabase::system().type_for_extension(item.file_path.extension().string());
 
         // File timestamp
         auto s_tp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(

@@ -1,15 +1,15 @@
 #pragma once
 
 #include "broapps/mime_service.h"
-#include "mime_table.h"
 
 #include <memory>
-#include <mutex>
 #include <string>
 #include <vector>
 
 namespace broapps {
 
+// Associations only: what a file *is* comes from brovfs (bro::vfs::MimeDatabase::system(),
+// the platform's type database), and the backends here answer which applications open a type.
 class MimeServiceBase : public MimeService {
 public:
     explicit MimeServiceBase(std::shared_ptr<AppCatalog> catalog);
@@ -20,6 +20,7 @@ public:
 
     std::string extension_to_mime(std::string_view extension) const override;
     std::vector<std::string> mime_to_extensions(std::string_view mime_type) const override;
+    std::string mime_for_file(const std::filesystem::path& file_path) const override;
 
 protected:
     std::shared_ptr<AppCatalog> catalog_;

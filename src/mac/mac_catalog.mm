@@ -14,6 +14,12 @@ void MacCatalog::refresh() {
     set_apps(std::move(scanned));
 }
 
+std::vector<std::filesystem::path> MacCatalog::source_directories() const {
+    std::vector<std::filesystem::path> out;
+    for (const auto& d : get_mac_application_dirs(config().extra_search_paths)) out.emplace_back(d);
+    return out;
+}
+
 }  // namespace broapps::mac_backend
 
 namespace broapps {

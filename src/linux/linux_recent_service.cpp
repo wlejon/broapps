@@ -1,6 +1,6 @@
 #include "linux_recent_service.h"
 #include "xbel_parser.h"
-#include "src/common/mime_table.h"
+#include <brovfs/mime.h>
 
 #include <algorithm>
 #include <cstdlib>
@@ -66,7 +66,7 @@ bool LinuxRecentService::add_recent_item(const std::filesystem::path& file_path,
     RecentItem new_item;
     new_item.file_path = file_path;
     new_item.display_name = file_path.filename().string();
-    new_item.mime_type = lookup_mime_by_extension(file_path.extension().string());
+    new_item.mime_type = bro::vfs::MimeDatabase::system().type_for_file(file_path).mime;
     new_item.app_id = app_id;
     new_item.timestamp = std::chrono::system_clock::now();
 

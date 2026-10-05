@@ -2,6 +2,7 @@
 
 #include "broapps/app_info.h"
 
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
@@ -27,6 +28,11 @@ public:
     virtual std::vector<AppInfo> find_by_category(std::string_view category) const = 0;
     virtual std::vector<AppInfo> find_by_mime_type(std::string_view mime_type) const = 0;
     virtual void refresh() = 0;
+
+    // The directories the catalog is scanned from: the platform's application locations (Start
+    // Menu Programs folders, XDG applications dirs, Applications folders) and
+    // CatalogConfig::extra_search_paths. Some may not exist. CatalogWatcher watches these.
+    virtual std::vector<std::filesystem::path> source_directories() const = 0;
 };
 
 }  // namespace broapps

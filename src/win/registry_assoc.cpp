@@ -150,19 +150,5 @@ WindowsAssociation query_registry_associations(std::string_view extension) {
     return assoc;
 }
 
-std::string query_registry_mime(std::string_view extension) {
-    std::string ext = std::string(extension);
-    if (!ext.starts_with('.')) ext = "." + ext;
-    std::wstring ext_w = utf8_to_wide(ext);
-
-    return read_reg_string(HKEY_CLASSES_ROOT, ext_w, L"Content Type");
-}
-
-std::string query_registry_extension_for_mime(std::string_view mime_type) {
-    std::wstring mime_w = utf8_to_wide(mime_type);
-    std::wstring key = L"MIME\\Database\\Content Type\\" + mime_w;
-    return read_reg_string(HKEY_CLASSES_ROOT, key, L"Extension");
-}
-
 }  // namespace broapps::win_backend
 #endif

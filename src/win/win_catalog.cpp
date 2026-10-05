@@ -91,6 +91,12 @@ void WinCatalog::refresh() {
     set_apps(std::move(merged));
 }
 
+std::vector<std::filesystem::path> WinCatalog::source_directories() const {
+    std::vector<std::filesystem::path> out;
+    for (const auto& d : get_start_menu_dirs(config().extra_search_paths)) out.emplace_back(d);
+    return out;
+}
+
 }  // namespace broapps::win_backend
 
 namespace broapps {

@@ -27,6 +27,21 @@ function(broapps_warnings target)
     endif()
 endfunction()
 
+# ---- brovfs --------------------------------------------------------------------
+# File types (MIME database) and directory watching. An existing `brovfs` target (a superbuild
+# already added it) wins; otherwise the repo beside this one (../brovfs), overridable with
+# -DBROVFS_DIR=<path>.
+if(NOT TARGET brovfs)
+    get_filename_component(_brovfs_default "${CMAKE_CURRENT_SOURCE_DIR}/../brovfs" ABSOLUTE)
+    set(BROVFS_DIR "${_brovfs_default}" CACHE PATH "Path to the brovfs repo")
+    if(NOT EXISTS "${BROVFS_DIR}/CMakeLists.txt")
+        message(FATAL_ERROR "broapps needs brovfs: clone it beside broapps (../brovfs) or pass -DBROVFS_DIR=<path>")
+    endif()
+    message(STATUS "broapps: brovfs from ${BROVFS_DIR}")
+    set(BROVFS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    add_subdirectory("${BROVFS_DIR}" "${CMAKE_BINARY_DIR}/brovfs" EXCLUDE_FROM_ALL)
+endif()
+
 file(GLOB BROAPPS_SOURCES CONFIGURE_DEPENDS src/common/*.cpp)
 
 if(WIN32)
@@ -60,6 +75,7 @@ target_include_directories(broapps
         ${CMAKE_CURRENT_SOURCE_DIR}/src/common)
 
 broapps_warnings(broapps)
+target_link_libraries(broapps PUBLIC brovfs::brovfs)
 
 if(WIN32)
     target_compile_definitions(broapps PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE _WIN32_WINNT=0x0A00)
