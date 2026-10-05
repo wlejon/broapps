@@ -126,3 +126,8 @@ elseif(APPLE)
     broapps_warnings(test_mac_icon)
     add_test(NAME test_mac_icon COMMAND test_mac_icon)
 endif()
+
+# TEST_SKIP (test_common.h) exits 77 when a tool or platform feature is absent: ctest reports
+# that as a skip, not a failure.
+get_property(_broapps_tests DIRECTORY PROPERTY TESTS)
+set_tests_properties(${_broapps_tests} PROPERTIES SKIP_RETURN_CODE 77)

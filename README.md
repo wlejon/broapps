@@ -1,6 +1,8 @@
 # broapps
 
-Application catalog and scoped process execution substrate for a cross-platform desktop environment built on the bro runtime. A standalone C++20 library: no dependency on bro or bronze, no JS bindings, its own CMake and ctest. It builds on one sibling, **brovfs** (resolved as `../brovfs`, override with `-DBROVFS_DIR=<path>`): file types come from brovfs's `MimeDatabase` (broapps keeps only the associations: which app opens a type), and the catalog watcher is brovfs's `DirectoryWatcher`.
+[![CI](https://github.com/wlejon/broapps/actions/workflows/ci.yml/badge.svg)](https://github.com/wlejon/broapps/actions/workflows/ci.yml)
+
+Application catalog and scoped process execution substrate for a cross-platform desktop environment built on the [bro](https://github.com/wlejon/bro) runtime. A standalone C++20 library: no dependency on bro or bronze, no JS bindings, its own CMake and ctest. It builds on one sibling, **[brovfs](https://github.com/wlejon/brovfs)** (see [Building](#building)): file types come from brovfs's `MimeDatabase` (broapps keeps only the associations: which app opens a type), and the catalog watcher is brovfs's `DirectoryWatcher`.
 
 ## Model
 
@@ -62,6 +64,22 @@ include/broapps/
 | **Catalog Watcher** | brovfs `DirectoryWatcher` (inotify) over the XDG application dirs, `.desktop` entries | brovfs `DirectoryWatcher` (ReadDirectoryChangesExW) over the Start Menu dirs, `.lnk` entries | brovfs `DirectoryWatcher` (FSEvents) over the application dirs, `.app` bundles |
 
 ## Building
+
+broapps needs [brovfs](https://github.com/wlejon/brovfs). It looks for a checkout beside
+it first, which is how the sibling repos are developed together:
+
+```bash
+git clone https://github.com/wlejon/broapps
+git clone https://github.com/wlejon/brovfs    # ../brovfs, or point -DBROVFS_DIR=<path> at one
+```
+
+Without one, it builds the `third_party/brovfs` submodule instead:
+
+```bash
+git clone --recursive https://github.com/wlejon/broapps
+# or, in an existing clone:
+git submodule update --init --recursive
+```
 
 Windows (MSVC, Visual Studio generator or Ninja):
 

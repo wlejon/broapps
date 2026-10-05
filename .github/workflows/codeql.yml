@@ -1,0 +1,71 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+# broapps turns files any installed package can drop on the system (.desktop
+# entries, mimeapps.list, recently-used.xbel, Info.plist, .lnk) into command
+# lines it then executes. Command injection through Exec field-code expansion,
+# path traversal in icon and entry lookup, and unchecked reads in the parsers
+# are the realistic bugs, and they are what the C++ queries look for. The
+# Linux backends are what this analyses.
+jobs:
+  analyze:
+    name: Analyze C++
+    runs-on: ubuntu-24.04
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: broapps
+
+      - uses: actions/checkout@v7
+        with:
+          repository: wlejon/brovfs
+          path: brovfs
+
+      - name: Install Ninja
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ninja-build
+
+      # Tests off: they are scaffolding, and they launch processes on purpose.
+      - name: Configure
+        run: cmake -S broapps -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBROAPPS_BUILD_TESTS=OFF
+
+      # brovfs is a sibling CMake compiles into this build. Building it here,
+      # ahead of `init`, is what keeps it out of the analysis: for a compiled
+      # language CodeQL analyses what it observes the compiler compile while
+      # tracing, and `paths-ignore` does not filter compiled sources. brovfs is
+      # analysed by its own CodeQL workflow; extracting it here would
+      # double-report every finding against the wrong repo.
+      - name: Pre-build sibling code (outside the traced build)
+        run: cmake --build build --parallel 4 --target brovfs
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: c-cpp
+          build-mode: manual
+          source-root: broapps
+          queries: security-extended
+
+      # Only broapps' own TUs are left to compile, so only they are traced.
+      - name: Build broapps (traced)
+        run: cmake --build build --parallel 4
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:c-cpp

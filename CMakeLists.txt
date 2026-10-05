@@ -14,6 +14,18 @@ endif()
 
 option(BROAPPS_BUILD_TESTS "Build broapps tests" ${_broapps_top_level})
 
+# Coverage. Scoped to a top-level build: a consumer that add_subdirectory()s
+# broapps has no business having its own build instrumented from in here.
+option(BROAPPS_COVERAGE "Instrument the build for gcov coverage (GCC/Clang)" OFF)
+if(BROAPPS_COVERAGE AND _broapps_top_level)
+    if(MSVC)
+        message(FATAL_ERROR "BROAPPS_COVERAGE requires GCC or Clang (gcov instrumentation); MSVC is unsupported.")
+    endif()
+    add_compile_options(--coverage -O0 -g)
+    add_link_options(--coverage)
+    message(STATUS "broapps: coverage instrumentation ON (-O0)")
+endif()
+
 if(MSVC AND _broapps_top_level)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
@@ -28,18 +40,27 @@ function(broapps_warnings target)
 endfunction()
 
 # ---- brovfs --------------------------------------------------------------------
-# File types (MIME database) and directory watching. An existing `brovfs` target (a superbuild
-# already added it) wins; otherwise the repo beside this one (../brovfs), overridable with
-# -DBROVFS_DIR=<path>.
+# File types (MIME database) and directory watching. Resolved like every bro sibling: an
+# existing `brovfs` target (a superbuild already added it) wins; otherwise a standalone
+# checkout beside the top-level project (../brovfs, overridable with -DBROVFS_DIR=<path>);
+# otherwise the top-level project's third_party/brovfs submodule
+# (`git submodule update --init --recursive`).
 if(NOT TARGET brovfs)
-    get_filename_component(_brovfs_default "${CMAKE_CURRENT_SOURCE_DIR}/../brovfs" ABSOLUTE)
-    set(BROVFS_DIR "${_brovfs_default}" CACHE PATH "Path to the brovfs repo")
-    if(NOT EXISTS "${BROVFS_DIR}/CMakeLists.txt")
-        message(FATAL_ERROR "broapps needs brovfs: clone it beside broapps (../brovfs) or pass -DBROVFS_DIR=<path>")
-    endif()
-    message(STATUS "broapps: brovfs from ${BROVFS_DIR}")
+    set(BROVFS_DIR "${CMAKE_SOURCE_DIR}/../brovfs" CACHE PATH
+        "Path to standalone brovfs repo (set to a missing path to force submodule fallback)")
     set(BROVFS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-    add_subdirectory("${BROVFS_DIR}" "${CMAKE_BINARY_DIR}/brovfs" EXCLUDE_FROM_ALL)
+    if(EXISTS "${BROVFS_DIR}/CMakeLists.txt")
+        message(STATUS "broapps: brovfs from ${BROVFS_DIR}")
+        add_subdirectory("${BROVFS_DIR}" "${CMAKE_BINARY_DIR}/brovfs" EXCLUDE_FROM_ALL)
+    elseif(EXISTS "${CMAKE_SOURCE_DIR}/third_party/brovfs/CMakeLists.txt")
+        message(STATUS "broapps: brovfs from ${CMAKE_SOURCE_DIR}/third_party/brovfs (submodule)")
+        add_subdirectory("${CMAKE_SOURCE_DIR}/third_party/brovfs" "${CMAKE_BINARY_DIR}/brovfs" EXCLUDE_FROM_ALL)
+    else()
+        message(FATAL_ERROR
+            "brovfs not found at ${BROVFS_DIR} or ${CMAKE_SOURCE_DIR}/third_party/brovfs. "
+            "Clone https://github.com/wlejon/brovfs next to this repo, run "
+            "`git submodule update --init --recursive`, or override with -DBROVFS_DIR=...")
+    endif()
 endif()
 
 file(GLOB BROAPPS_SOURCES CONFIGURE_DEPENDS src/common/*.cpp)
