@@ -1,0 +1,12 @@
+build/
+build-*/
+build_*
+out/
+.vs/
+*.user
+*.suo
+*.VC.db
+compile_commands.json
+*.tar.gz
+*.tar
+.DS_Store
