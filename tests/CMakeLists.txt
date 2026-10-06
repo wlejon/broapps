@@ -127,7 +127,13 @@ elseif(APPLE)
     add_test(NAME test_mac_icon COMMAND test_mac_icon)
 endif()
 
-if(BROAPPS_ENABLE_API)
+# The api test scripts the freedesktop catalog: a .desktop file in a scratch
+# search path, XDG_CONFIG_HOME for mimeapps.list, /bin/echo as the launched
+# program. It is Linux-only for that reason; broapps_api itself still builds
+# everywhere, so a Windows or macOS build still proves it compiles.
+if(BROAPPS_ENABLE_API AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    message(STATUS "broapps: broapps_test_api is Linux-only (it drives the freedesktop catalog)")
+elseif(BROAPPS_ENABLE_API)
     add_executable(broapps_test_api
         test_apps_api.cpp
     )

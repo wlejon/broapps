@@ -37,6 +37,8 @@ jobs:
           repository: wlejon/brovfs
           path: brovfs
 
+      - uses: wlejon/bronze/.github/actions/checkout-toolchain@main
+
       - name: Install Ninja
         run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ninja-build
 
@@ -44,14 +46,15 @@ jobs:
       - name: Configure
         run: cmake -S broapps -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBROAPPS_BUILD_TESTS=OFF
 
-      # brovfs is a sibling CMake compiles into this build. Building it here,
+      # brovfs and bronze (with brass through it, for broapps_api) are
+      # siblings CMake compiles into this build. Building them here,
       # ahead of `init`, is what keeps it out of the analysis: for a compiled
       # language CodeQL analyses what it observes the compiler compile while
-      # tracing, and `paths-ignore` does not filter compiled sources. brovfs is
-      # analysed by its own CodeQL workflow; extracting it here would
+      # tracing, and `paths-ignore` does not filter compiled sources. Each is
+      # analysed by its own CodeQL workflow; extracting them here would
       # double-report every finding against the wrong repo.
       - name: Pre-build sibling code (outside the traced build)
-        run: cmake --build build --parallel 4 --target brovfs
+        run: cmake --build build --parallel 4 --target brovfs bronze_runtime_shared
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4

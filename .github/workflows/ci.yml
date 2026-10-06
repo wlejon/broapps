@@ -17,6 +17,12 @@ concurrency:
 #     $GITHUB_WORKSPACE/
 #       broapps/   <- this repo, checked out into a named path, not the root
 #       brovfs/
+#       bronze/    <- the JavaScript runtime broapps_api binds
+#       brass/     <- bronze's code generator
+#
+# bronze and brass are laid out by bronze's checkout-toolchain action in every
+# job, the submodule fallback included. brovfs's own api is off here (it
+# defaults on only when brovfs is the top-level project).
 #
 # Hence `path:` on the checkouts and `cmake -S broapps`. brovfs is taken from
 # main, which mirrors how the stack is developed (everything tracks main), so
@@ -52,6 +58,8 @@ jobs:
         with:
           repository: wlejon/brovfs
           path: brovfs
+
+      - uses: wlejon/bronze/.github/actions/checkout-toolchain@main
 
       - name: Install packages (Linux)
         if: runner.os == 'Linux'
@@ -105,6 +113,10 @@ jobs:
           path: broapps
           submodules: recursive
 
+      # bronze/brass are the documented exception to the submodule rule: the
+      # api compiles against the bronze of the program that loads it.
+      - uses: wlejon/bronze/.github/actions/checkout-toolchain@main
+
       - name: Install packages
         run: |
           sudo apt-get update -qq
@@ -138,6 +150,8 @@ jobs:
         with:
           repository: wlejon/brovfs
           path: brovfs
+
+      - uses: wlejon/bronze/.github/actions/checkout-toolchain@main
 
       - name: Install packages
         run: |
