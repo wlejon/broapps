@@ -31,6 +31,10 @@ int main() {
                    ("broapps_api_test_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
     std::filesystem::create_directories(tmp_dir);
 
+    const char* orig_config_home = std::getenv("XDG_CONFIG_HOME");
+    std::string orig_config_str = orig_config_home ? orig_config_home : "";
+    setenv("XDG_CONFIG_HOME", tmp_dir.c_str(), 1);
+
     auto test_desktop_file = tmp_dir / "test-bro-calc.desktop";
     {
         std::ofstream ofs(test_desktop_file);
@@ -77,7 +81,8 @@ int main() {
     // Verify all core methods exist
     const char* methods[] = {
         "list", "get", "search", "launch", "resolveIcon",
-        "getDefaultApp", "getAppsForMime", "getRecent", "addRecent",
+        "getDefaultApp", "setDefaultAppForMime", "setDefaultApp",
+        "getAppsForMime", "getRecent", "addRecent",
         "clearRecent", "watch", "unwatch", "refresh",
         "findByCategory", "findByMimeType", "getCapabilities"
     };
@@ -153,16 +158,23 @@ int main() {
     }
 
     // 5. Test MIME associations
-    std::cout << "Testing getDefaultApp and getAppsForMime..." << std::endl;
+    std::cout << "Testing getDefaultApp, setDefaultAppForMime, and getAppsForMime..." << std::endl;
     {
         auto r = evalScript(
             "(function() {\n"
             "  const cands = bro.apps.getAppsForMime('application/x-calc');\n"
             "  if (!Array.isArray(cands)) return false;\n"
             "  if (!cands.some(a => a.id === 'test-bro-calc.desktop')) return false;\n"
+            "  \n"
+            "  const setOk = bro.apps.setDefaultAppForMime('application/x-calc', 'test-bro-calc.desktop');\n"
+            "  if (setOk !== true) return false;\n"
+            "  \n"
             "  const defApp = bro.apps.getDefaultApp('application/x-calc');\n"
-            "  // Default app might or might not be assigned, but function should return AppInfo or null\n"
-            "  if (defApp !== null && typeof defApp !== 'object') return false;\n"
+            "  if (!defApp || typeof defApp !== 'object') return false;\n"
+            "  if (defApp.id !== 'test-bro-calc.desktop') return false;\n"
+            "  \n"
+            "  const setAliasOk = bro.apps.setDefaultApp('application/x-calc', 'test-bro-calc.desktop');\n"
+            "  if (setAliasOk !== true) return false;\n"
             "  return true;\n"
             "})()\n"
         );
@@ -337,6 +349,11 @@ int main() {
     // 10. Shutdown and cleanup
     broapps::api::shutdownAppsAsync();
     std::filesystem::remove_all(tmp_dir);
+    if (orig_config_home) {
+        setenv("XDG_CONFIG_HOME", orig_config_str.c_str(), 1);
+    } else {
+        unsetenv("XDG_CONFIG_HOME");
+    }
 
     std::cout << "All broapps API tests PASSED!" << std::endl;
     return 0;

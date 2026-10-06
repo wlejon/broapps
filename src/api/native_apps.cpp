@@ -447,6 +447,32 @@ void installAppsOnto(Value appsObj) {
         return ev::null();
     });
 
+    // bro.apps.setDefaultAppForMime(mimeType, appId) -> boolean
+    apps.def("setDefaultAppForMime", 2, [](Value, std::span<const Value> args) -> Value {
+        if (args.size() < 2 || !ev::isString(args[0]) || !ev::isString(args[1])) {
+            return ev::fromBool(false);
+        }
+        std::string mimeType = ev::toUtf8(args[0]);
+        std::string appId = ev::toUtf8(args[1]);
+        auto mimeService = activeMimeService();
+        if (!mimeService) return ev::fromBool(false);
+
+        return ev::fromBool(mimeService->set_default_app_for_mime(mimeType, appId));
+    });
+
+    // bro.apps.setDefaultApp(mimeType, appId) -> boolean (alias)
+    apps.def("setDefaultApp", 2, [](Value, std::span<const Value> args) -> Value {
+        if (args.size() < 2 || !ev::isString(args[0]) || !ev::isString(args[1])) {
+            return ev::fromBool(false);
+        }
+        std::string mimeType = ev::toUtf8(args[0]);
+        std::string appId = ev::toUtf8(args[1]);
+        auto mimeService = activeMimeService();
+        if (!mimeService) return ev::fromBool(false);
+
+        return ev::fromBool(mimeService->set_default_app_for_mime(mimeType, appId));
+    });
+
     // bro.apps.getAppsForMime(mimeType) -> AppInfo[]
     apps.def("getAppsForMime", 1, [](Value, std::span<const Value> args) -> Value {
         if (args.empty() || !ev::isString(args[0])) return ev::makeArray(0);

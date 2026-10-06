@@ -42,7 +42,7 @@ include/broapps/
   event_queue.h      MessageQueue<T> (thread-safe MPSC queue with wake hook)
   app_catalog.h      AppCatalog (querying, search with scoring, categories, MIME types, refresh)
   app_launcher.h     AppLauncher (scoped launch of AppInfo or arbitrary executables)
-  mime_service.h     MimeService (default apps, open-with candidates; type queries forward to brovfs)
+  mime_service.h     MimeService (querying and setting default apps, open-with candidates; type queries forward to brovfs)
   icon_resolver.h    IconResolver (path resolution for desktop icons across themes)
   recent_service.h   RecentService (querying, registering, and clearing recent documents)
   catalog_watcher.h  CatalogWatcher (installed apps changed: brovfs watcher over the catalog's source dirs)
@@ -57,7 +57,7 @@ include/broapps/
 | **App Catalog** | XDG Application directories (`$XDG_DATA_HOME`, `$XDG_DATA_DIRS`), Freedesktop Desktop Entry Specification v1.5 (`.desktop` parser, `%f/%F/%u/%U/%i/%c/%k` field code expansions, sub-actions, deduplication, TryExec checks) | Start Menu shortcuts (`.lnk` via COM `IShellLinkW` / `IPersistFile`), Packaged Apps & modern Store apps via `shell:AppsFolder` enumeration (`IShellItem2` PKEY_AppUserModel_ID) | `/Applications`, `/System/Applications`, `~/Applications`, `Info.plist` bundle scanner via CoreFoundation / Foundation, `.icns` resource resolution |
 | **Scoped Launching** | `systemd-run --user --scope --unit=app-<name>-<uuid>` (isolated cgroup user scopes); detached `setsid` / `fork` / `execv` fallback | Win32 Job Object isolation (`CreateJobObjectW`, `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`, suspended start, `ResumeThread`); `IApplicationActivationManager` for packaged AUMIDs | Direct executable `fork`/`exec` with process group isolation, or `open -b <bundle_id> --args` |
 | **Process Monitoring** | Background worker thread waiting on `waitpid`, pushes `AppStarted` and `AppExited` (exit code, signal name) | Background worker thread waiting on `WaitForSingleObject` and `GetExitCodeProcess` | Background worker thread waiting on `waitpid` |
-| **MIME Associations** | Freedesktop `mimeapps.list` spec hierarchy (`~/.config/mimeapps.list`, `/etc/xdg/mimeapps.list`, `/usr/share/applications/mimeinfo.cache`) | Windows Registry (`UserChoice` / `OpenWithProgids` / `OpenWithList` under `HKCU` and `HKCR`), shell command parsing | macOS LaunchServices API (`LSCopyDefaultRoleHandlerForContentType`, `LSCopyAllRoleHandlersForContentType`, `UTType`) |
+| **MIME Associations** | Freedesktop `mimeapps.list` spec hierarchy (`~/.config/mimeapps.list`, `/etc/xdg/mimeapps.list`, `/usr/share/applications/mimeinfo.cache`), atomic `mimeapps.list` user defaults persistence | Windows Registry (`UserChoice` / `OpenWithProgids` / `OpenWithList` under `HKCU` and `HKCR`), shell command parsing | macOS LaunchServices API (`LSSetDefaultRoleHandlerForContentType`, `LSCopyDefaultRoleHandlerForContentType`, `LSCopyAllRoleHandlersForContentType`, `UTType`) |
 | **Recent Documents** | Freedesktop Desktop Bookmark Spec (`recently-used.xbel` XML reader & atomic writer) | Win32 Shell Recent items (`SHGetKnownFolderPath(FOLDERID_Recent)` `.lnk` parsing and `SHAddToRecentDocs`) | Property list backed recent items storage |
 | **Icon Resolution** | Freedesktop Icon Theme Spec (theme hierarchies, `/usr/share/pixmaps`, size fallback) | Win32 icon path and index extraction | macOS CoreTypes bundle resources & `.icns` resolution |
 | **File types** | brovfs `MimeDatabase` (shared-mime-info) | brovfs `MimeDatabase` (registry content types) | brovfs `MimeDatabase` (UTType) |
@@ -125,7 +125,7 @@ Real ctests: no `assert()`, and failures count in every configuration. Exit 77 i
 | `test_linux_catalog` | Linux | Differential comparison against `/usr/share/applications` |
 | `test_linux_launch` | Linux | Scoped `systemd-run` user scope & fallback lifecycle, kill signal verification |
 | `test_xbel` | Linux | Freedesktop XBEL XML parsing and serialization |
-| `test_linux_mime` | Linux | Freedesktop `mimeapps.list` association hierarchy and default app resolution |
+| `test_linux_mime` | Linux | Freedesktop `mimeapps.list` association hierarchy, default app resolution, and atomic user default persistence |
 | `test_linux_recent` | Linux | Linux recent files management (`recently-used.xbel`) |
 | `test_linux_icon` | Linux | Freedesktop icon theme path resolution |
 | `test_mac_bundle` | macOS | Real `/Applications` bundle `Info.plist` parsing |

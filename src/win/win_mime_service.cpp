@@ -25,6 +25,14 @@ std::string to_lower_str(std::string_view sv) {
 WinMimeService::WinMimeService(std::shared_ptr<AppCatalog> catalog)
     : MimeServiceBase(std::move(catalog)) {}
 
+bool WinMimeService::set_default_app_for_mime(std::string_view mime_type, std::string_view app_id) {
+    if (mime_type.empty() || app_id.empty()) return false;
+    // On Windows 8 and newer, programmatic changes to user default file associations
+    // are protected by the OS (UserChoice hash validation) and must go through
+    // Windows Settings / IApplicationAssociationRegistrationUI.
+    return false;
+}
+
 std::optional<AppInfo> WinMimeService::get_default_app_for_mime(std::string_view mime_type) {
     if (auto app = registered_default(mime_type)) return app;
 

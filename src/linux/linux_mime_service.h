@@ -10,6 +10,7 @@ public:
     explicit LinuxMimeService(std::shared_ptr<AppCatalog> catalog);
     ~LinuxMimeService() override = default;
 
+    bool set_default_app_for_mime(std::string_view mime_type, std::string_view app_id) override;
     std::optional<AppInfo> get_default_app_for_mime(std::string_view mime_type) override;
     std::vector<AppInfo> get_candidates_for_mime(std::string_view mime_type) override;
 

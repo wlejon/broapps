@@ -38,6 +38,32 @@ std::string uti_from_mime(std::string_view mime) {
 MacMimeService::MacMimeService(std::shared_ptr<AppCatalog> catalog)
     : MimeServiceBase(std::move(catalog)) {}
 
+bool MacMimeService::set_default_app_for_mime(std::string_view mime_type, std::string_view app_id) {
+    if (mime_type.empty() || app_id.empty()) return false;
+    std::string uti = uti_from_mime(mime_type);
+    if (uti.empty()) return false;
+
+    std::string bundle_id(app_id);
+    if (auto app = find_app_in_catalog(app_id)) {
+        if (!app->bundle_id.empty()) {
+            bundle_id = app->bundle_id;
+        }
+    }
+
+    CFStringRef uti_cf = CFStringCreateWithCString(nullptr, uti.c_str(), kCFStringEncodingUTF8);
+    if (!uti_cf) return false;
+    CFStringRef bundle_id_cf = CFStringCreateWithCString(nullptr, bundle_id.c_str(), kCFStringEncodingUTF8);
+    if (!bundle_id_cf) {
+        CFRelease(uti_cf);
+        return false;
+    }
+
+    OSStatus status = LSSetDefaultRoleHandlerForContentType(uti_cf, kLSRolesAll, bundle_id_cf);
+    CFRelease(bundle_id_cf);
+    CFRelease(uti_cf);
+    return status == noErr;
+}
+
 std::optional<AppInfo> MacMimeService::get_default_app_for_mime(std::string_view mime_type) {
     std::string uti = uti_from_mime(mime_type);
     if (!uti.empty()) {

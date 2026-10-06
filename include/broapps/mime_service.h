@@ -26,6 +26,8 @@ public:
     // a path that does not exist is typed by name.
     virtual std::optional<AppInfo> get_default_app_for_file(const std::filesystem::path& file_path) = 0;
 
+    virtual bool set_default_app_for_mime(std::string_view mime_type, std::string_view app_id) = 0;
+
     virtual std::vector<AppInfo> get_candidates_for_mime(std::string_view mime_type) = 0;
     virtual std::vector<AppInfo> get_candidates_for_file(const std::filesystem::path& file_path) = 0;
 
