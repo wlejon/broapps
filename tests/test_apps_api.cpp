@@ -26,14 +26,39 @@ int main() {
 
     std::cout << "Starting broapps JavaScript API test..." << std::endl;
 
+#if !defined(__linux__)
+    // Off Linux the recent-items and default-app services act on the real
+    // account (SHAddToRecentDocs, file associations, LaunchServices) with no
+    // per-process redirect, and this test calls clearRecent / addRecent /
+    // setDefaultApp. It runs there only when explicitly asked to.
+    {
+        const char* mutate = std::getenv("BROAPPS_TEST_MUTATE");
+        if (!mutate || std::string(mutate) != "1") {
+            std::cout << "SKIPPED: would change this account's recent files and file "
+                         "associations; set BROAPPS_TEST_MUTATE=1 to run it anyway"
+                      << std::endl;
+            return 77;
+        }
+    }
+#endif
+
     // 1. Create a temporary directory with a test desktop file
     auto tmp_dir = std::filesystem::temp_directory_path() /
                    ("broapps_api_test_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
     std::filesystem::create_directories(tmp_dir);
 
+    // Everything this test writes (mimeapps.list via setDefaultApp*,
+    // recently-used.xbel via addRecent/clearRecent) must land in tmp_dir, never
+    // in the account running it: both XDG homes point there before any
+    // service is created.
     const char* orig_config_home = std::getenv("XDG_CONFIG_HOME");
     std::string orig_config_str = orig_config_home ? orig_config_home : "";
-    setenv("XDG_CONFIG_HOME", tmp_dir.c_str(), 1);
+    const char* orig_data_home = std::getenv("XDG_DATA_HOME");
+    std::string orig_data_str = orig_data_home ? orig_data_home : "";
+    setenv("XDG_CONFIG_HOME", (tmp_dir / "config").c_str(), 1);
+    setenv("XDG_DATA_HOME", (tmp_dir / "data").c_str(), 1);
+    std::filesystem::create_directories(tmp_dir / "config");
+    std::filesystem::create_directories(tmp_dir / "data");
 
     auto test_desktop_file = tmp_dir / "test-bro-calc.desktop";
     {
@@ -353,6 +378,11 @@ int main() {
         setenv("XDG_CONFIG_HOME", orig_config_str.c_str(), 1);
     } else {
         unsetenv("XDG_CONFIG_HOME");
+    }
+    if (orig_data_home) {
+        setenv("XDG_DATA_HOME", orig_data_str.c_str(), 1);
+    } else {
+        unsetenv("XDG_DATA_HOME");
     }
 
     std::cout << "All broapps API tests PASSED!" << std::endl;
