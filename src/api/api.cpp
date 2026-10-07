@@ -188,10 +188,12 @@ void installApps() {
 
 void tickAppsAsync() {
     drainWatcherEvents();
+    drainLaunchJobs();
 }
 
 void shutdownAppsAsync() {
     clearWatchers();
+    clearLaunchJobs();
 }
 
 } // namespace broapps::api

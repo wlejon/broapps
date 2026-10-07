@@ -33,5 +33,7 @@ Value wrapProcessHandle(std::shared_ptr<broapps::ProcessHandle> handle);
 void installAppsOnto(Value appsObj);
 void drainWatcherEvents();
 void clearWatchers();
+void drainLaunchJobs();
+void clearLaunchJobs();
 
 } // namespace broapps::api

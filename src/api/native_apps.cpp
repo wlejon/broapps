@@ -2,9 +2,11 @@
 #include "arg_reader.h"
 #include "object_builder.h"
 
+#include <atomic>
 #include <chrono>
 #include <filesystem>
 #include <mutex>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -20,6 +22,17 @@ struct ActiveWatcher {
 std::mutex g_watcher_mu;
 uint64_t g_next_watch_token = 1;
 std::unordered_map<uint64_t, ActiveWatcher> g_watchers;
+
+struct LaunchJob {
+    std::shared_ptr<ev::Persistent> promise;
+    std::shared_ptr<broapps::ProcessHandle> handle;
+    std::string error;
+    std::atomic<bool> done{false};
+    std::thread worker;
+};
+
+std::mutex g_launch_mu;
+std::vector<std::shared_ptr<LaunchJob>> g_launch_jobs;
 
 Value makeStringArray(const std::vector<std::string>& vec) {
     ev::Persistent arr(ev::makeArray(static_cast<uint32_t>(vec.size())));
@@ -220,6 +233,57 @@ void clearWatchers() {
     }
 }
 
+void trackLaunchJob(std::shared_ptr<LaunchJob> job) {
+    std::lock_guard lock(g_launch_mu);
+    g_launch_jobs.push_back(std::move(job));
+}
+
+void drainLaunchJobs() {
+    std::vector<std::shared_ptr<LaunchJob>> completed;
+    {
+        std::lock_guard lock(g_launch_mu);
+        if (g_launch_jobs.empty()) return;
+        std::vector<std::shared_ptr<LaunchJob>> remaining;
+        for (auto& j : g_launch_jobs) {
+            if (j->done.load(std::memory_order_acquire)) {
+                completed.push_back(std::move(j));
+            } else {
+                remaining.push_back(std::move(j));
+            }
+        }
+        g_launch_jobs = std::move(remaining);
+    }
+
+    for (auto& job : completed) {
+        if (job->worker.joinable()) {
+            job->worker.join();
+        }
+        if (!job->error.empty()) {
+            ev::Persistent err(makeError(job->error));
+            ev::rejectPromise(job->promise->get(), err.get());
+        } else if (job->handle) {
+            ev::Persistent handleVal(wrapProcessHandle(std::move(job->handle)));
+            ev::resolvePromise(job->promise->get(), handleVal.get());
+        } else {
+            ev::Persistent err(makeError("Launch failed: process handle unavailable"));
+            ev::rejectPromise(job->promise->get(), err.get());
+        }
+    }
+}
+
+void clearLaunchJobs() {
+    std::vector<std::shared_ptr<LaunchJob>> jobs;
+    {
+        std::lock_guard lock(g_launch_mu);
+        jobs = std::move(g_launch_jobs);
+    }
+    for (auto& j : jobs) {
+        if (j->worker.joinable()) {
+            j->worker.join();
+        }
+    }
+}
+
 void installAppsOnto(Value appsObj) {
     ObjectBuilder apps(appsObj);
 
@@ -375,23 +439,37 @@ void installAppsOnto(Value appsObj) {
                 appOpt = catalog->find_by_id(id);
             }
 
-            std::shared_ptr<ProcessHandle> handle;
-            if (appOpt) {
-                handle = launcher->launch(*appOpt, scope);
-            } else {
-                std::error_code ec;
-                if (std::filesystem::exists(id, ec) || id.find('/') != std::string::npos || id.find('\\') != std::string::npos) {
-                    handle = launcher->launch_executable(id, scope);
-                }
-            }
+            std::error_code ec;
+            bool isPathOrExe = !appOpt && (std::filesystem::exists(id, ec) || id.find('/') != std::string::npos || id.find('\\') != std::string::npos);
 
-            if (handle) {
-                ev::Persistent handleVal(wrapProcessHandle(std::move(handle)));
-                ev::resolvePromise(promiseP.get(), handleVal.get());
-            } else {
+            if (!appOpt && !isPathOrExe) {
                 ev::Persistent err(makeError("App not found: " + id));
                 ev::rejectPromise(promiseP.get(), err.get());
+                return promiseP.get();
             }
+
+            auto job = std::make_shared<LaunchJob>();
+            job->promise = std::make_shared<ev::Persistent>(promiseP.get());
+
+            job->worker = std::thread([job, launcher, appOpt, id, isPathOrExe, scope]() {
+                try {
+                    if (appOpt) {
+                        job->handle = launcher->launch(*appOpt, scope);
+                    } else if (isPathOrExe) {
+                        job->handle = launcher->launch_executable(id, scope);
+                    }
+                    if (!job->handle) {
+                        job->error = "App launch returned null handle: " + id;
+                    }
+                } catch (const std::exception& ex) {
+                    job->error = std::string("Launch failed: ") + ex.what();
+                } catch (...) {
+                    job->error = "Launch failed with unknown exception";
+                }
+                job->done.store(true, std::memory_order_release);
+            });
+
+            trackLaunchJob(job);
         } catch (const std::exception& ex) {
             ev::Persistent err(makeError(std::string("Launch failed: ") + ex.what()));
             ev::rejectPromise(promiseP.get(), err.get());

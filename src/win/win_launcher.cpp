@@ -7,6 +7,7 @@
 #endif
 #include <windows.h>
 #include <shobjidl.h>
+#include <shellapi.h>
 #include <filesystem>
 #include <random>
 #include <sstream>
@@ -171,22 +172,8 @@ std::shared_ptr<ProcessHandle> WinLauncher::launch_packaged(
     const LaunchScope& scope,
     uint64_t lid) {
 
-    ComScope com;
-    IApplicationActivationManager* aam = nullptr;
-    HRESULT hr = CoCreateInstance(
-        CLSID_ApplicationActivationManager,
-        nullptr,
-        CLSCTX_LOCAL_SERVER,
-        IID_IApplicationActivationManager,
-        reinterpret_cast<void**>(&aam));
-
-    if (FAILED(hr) || !aam) {
-        std::string err = "Failed to create IApplicationActivationManager (hr=" + std::to_string(hr) + ")";
-        events_.push(AppFailed{lid, app.id, err, std::chrono::system_clock::now()});
-        auto h = std::make_shared<WinProcessHandle>(lid, 0, "", nullptr, nullptr, JobObject{});
-        h->notify_exited(1);
-        return h;
-    }
+    std::string aumid = app.aumid.empty() ? app.id : app.aumid;
+    std::wstring aumid_w = utf8_to_wide(aumid);
 
     std::string args_combined;
     for (const auto& a : scope.arguments) {
@@ -197,42 +184,89 @@ std::shared_ptr<ProcessHandle> WinLauncher::launch_packaged(
         if (!args_combined.empty()) args_combined.push_back(' ');
         args_combined.append(quote_argument(f));
     }
-
-    std::wstring aumid_w = utf8_to_wide(app.aumid);
     std::wstring args_w = utf8_to_wide(args_combined);
 
     DWORD pid = 0;
-    hr = aam->ActivateApplication(aumid_w.c_str(), args_w.empty() ? nullptr : args_w.c_str(), AO_NONE, &pid);
-    aam->Release();
+    bool activated = false;
+    AllowSetForegroundWindow(ASFW_ANY);
 
-    if (FAILED(hr)) {
-        std::string err = "Failed to activate packaged app " + app.aumid + " (hr=" + std::to_string(hr) + ")";
+    // 1. Try IApplicationActivationManager in-process (twinui.appcore.dll).
+    // Note: In a standalone shell session where explorer.exe is not running,
+    // CLSCTX_LOCAL_SERVER attempts to activate an out-of-process surrogate via dllhost.exe
+    // configured with RunAs: Interactive User, which deadlocks waiting for the shell broker.
+    // Using CLSCTX_INPROC_SERVER loads twinui.appcore.dll directly without surrogate processes.
+    {
+        ComScope com;
+        IApplicationActivationManager* aam = nullptr;
+        HRESULT hr = CoCreateInstance(
+            CLSID_ApplicationActivationManager,
+            nullptr,
+            CLSCTX_INPROC_SERVER | CLSCTX_LOCAL_SERVER,
+            IID_IApplicationActivationManager,
+            reinterpret_cast<void**>(&aam));
+
+        if (SUCCEEDED(hr) && aam) {
+            hr = aam->ActivateApplication(
+                aumid_w.c_str(),
+                args_w.empty() ? nullptr : args_w.c_str(),
+                AO_NONE,
+                &pid);
+            aam->Release();
+            if (SUCCEEDED(hr)) {
+                activated = true;
+            }
+        }
+    }
+
+    // 2. Fallback: ShellExecuteExW with shell:AppsFolder\<AUMID> or protocol schemes
+    if (!activated) {
+        std::wstring target = L"shell:AppsFolder\\" + aumid_w;
+        SHELLEXECUTEINFOW sei = { sizeof(sei) };
+        sei.fMask = SEE_MASK_FLAG_NO_UI | SEE_MASK_NOCLOSEPROCESS;
+        sei.lpVerb = L"open";
+        sei.lpFile = target.c_str();
+        sei.lpParameters = args_w.empty() ? nullptr : args_w.c_str();
+        sei.nShow = SW_SHOWNORMAL;
+        if (ShellExecuteExW(&sei)) {
+            activated = true;
+            if (sei.hProcess) {
+                pid = GetProcessId(sei.hProcess);
+                CloseHandle(sei.hProcess);
+            }
+        }
+    }
+
+    if (pid > 0) {
+        AllowSetForegroundWindow(pid);
+    }
+
+    if (!activated) {
+        std::string err = "Failed to activate packaged app " + aumid;
         events_.push(AppFailed{lid, app.id, err, std::chrono::system_clock::now()});
         auto h = std::make_shared<WinProcessHandle>(lid, 0, "", nullptr, nullptr, JobObject{});
         h->notify_exited(1);
         return h;
     }
 
-    HANDLE hProcess = OpenProcess(SYNCHRONIZE | PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
-    JobObject job;
-    std::string job_name = generate_random_job_name(app.id);
-
-    if (config_.use_job_objects && hProcess) {
-        job = JobObject(utf8_to_wide(job_name));
-        if (job.is_valid()) {
-            job.set_kill_on_close(true);
-            job.assign_process(hProcess);
+    HANDLE hProcess = nullptr;
+    if (pid > 0) {
+        hProcess = OpenProcess(SYNCHRONIZE | PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+        if (!hProcess) {
+            hProcess = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
         }
     }
 
+    // Note: Do not assign packaged / UWP apps to a JobObject with kill_on_close.
+    // Windows AppModel natively manages AppContainers, and assigning them to a custom
+    // JobObject can fail with access denied or kill the app prematurely upon handle close.
     auto handle = std::make_shared<WinProcessHandle>(
-        lid, static_cast<int64_t>(pid), job_name, hProcess, nullptr, std::move(job));
+        lid, static_cast<int64_t>(pid), "", hProcess, nullptr, JobObject{});
 
     events_.push(AppStarted{
         lid,
         app.id,
         static_cast<int64_t>(pid),
-        job_name,
+        "",
         std::chrono::system_clock::now()
     });
 
@@ -341,6 +375,8 @@ std::shared_ptr<ProcessHandle> WinLauncher::launch_win32(
     STARTUPINFOW si = { sizeof(si) };
     PROCESS_INFORMATION pi = {};
 
+    AllowSetForegroundWindow(ASFW_ANY);
+
     BOOL ok = CreateProcessW(
         nullptr,
         cmdline_w.data(),
@@ -361,6 +397,8 @@ std::shared_ptr<ProcessHandle> WinLauncher::launch_win32(
         h->notify_exited(static_cast<int>(err));
         return h;
     }
+
+    AllowSetForegroundWindow(pi.dwProcessId);
 
     std::string job_name = generate_random_job_name(app_id);
     JobObject job;

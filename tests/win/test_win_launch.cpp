@@ -96,6 +96,21 @@ int main(int argc, char* argv[]) {
         TEST_CHECK(!handle->is_running());
     }
 
+    // Test 4: Launch packaged app (Windows Settings) - only run if explicitly enabled
+    // to avoid interrupting user session with interactive GUI popups
+    if (std::getenv("BROAPPS_TEST_INTERACTIVE_UI")) {
+        AppInfo app;
+        app.id = "windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel";
+        app.name = "Settings";
+        app.aumid = "windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel";
+        app.is_packaged = true;
+
+        LaunchScope scope;
+        auto handle = launcher->launch(app, scope);
+        TEST_CHECK(handle != nullptr);
+        std::cout << "Packaged app launch succeeded, pid=" << handle->pid() << std::endl;
+    }
+
     std::cout << "test_win_launch passed!" << std::endl;
     return 0;
 #endif
