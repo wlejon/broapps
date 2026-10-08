@@ -237,6 +237,8 @@ int main() {
             "(function() {\n"
             "  const res = bro.apps.resolveIcon('accessories-calculator', { size: 48 });\n"
             "  if (res !== null && typeof res !== 'string') return false;\n"
+            "  const themed = bro.apps.resolveIcon('accessories-calculator', { size: 32, scale: 2, theme: 'hicolor' });\n"
+            "  if (themed !== null && typeof themed !== 'string') return false;\n"
             "  const resNonExistent = bro.apps.resolveIcon('some_nonexistent_icon_12345');\n"
             "  if (resNonExistent !== null) return false;\n"
             "  return true;\n"

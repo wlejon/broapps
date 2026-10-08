@@ -479,29 +479,33 @@ void installAppsOnto(Value appsObj) {
     });
 
     // bro.apps.resolveIcon(iconName, options?) -> string | null
+    // options: a size number, or { size, scale, theme }.
     apps.def("resolveIcon", 1, [](Value, std::span<const Value> args) -> Value {
         if (args.empty() || !ev::isString(args[0])) return ev::null();
         std::string iconName = ev::toUtf8(args[0]);
         if (iconName.empty()) return ev::null();
 
-        uint32_t size = 48;
+        broapps::IconLookupOptions options;
+        auto positive = [](Value v, uint32_t& out) {
+            if (!ev::isNumber(v)) return;
+            double d = ev::toDouble(v);
+            if (d >= 1 && d <= 65536) out = static_cast<uint32_t>(d);
+        };
         if (args.size() > 1) {
             if (ev::isNumber(args[1])) {
-                double d = ev::toDouble(args[1]);
-                if (d > 0) size = static_cast<uint32_t>(d);
+                positive(args[1], options.size);
             } else if (ev::isObject(args[1])) {
-                Value szVal = ev::getProperty(args[1], "size");
-                if (ev::isNumber(szVal)) {
-                    double d = ev::toDouble(szVal);
-                    if (d > 0) size = static_cast<uint32_t>(d);
-                }
+                positive(ev::getProperty(args[1], "size"), options.size);
+                positive(ev::getProperty(args[1], "scale"), options.scale);
+                Value themeVal = ev::getProperty(args[1], "theme");
+                if (ev::isString(themeVal)) options.theme = ev::toUtf8(themeVal);
             }
         }
 
         auto resolver = activeIconResolver();
         if (!resolver) return ev::null();
 
-        auto path = resolver->resolve_icon(iconName, size);
+        auto path = resolver->resolve_icon(iconName, options);
         if (path) {
             return ev::fromUtf8(path->string());
         }
