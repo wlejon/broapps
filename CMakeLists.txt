@@ -49,7 +49,7 @@ endfunction()
 # an existing `brovfs` target (a superbuild already added it) wins; otherwise the ../brovfs
 # working tree beside the top-level project; otherwise the pinned commit, fetched at configure.
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/bro_deps.cmake)
-bro_dependency(brovfs GITHUB wlejon/brovfs REF 634ee1228e55fd2aaa5d50437b5b571f45e9385d OPTIONS BROVFS_BUILD_TESTS=OFF)
+bro_dependency(brovfs GITHUB wlejon/brovfs OPTIONS BROVFS_BUILD_TESTS=OFF)
 
 file(GLOB BROAPPS_SOURCES CONFIGURE_DEPENDS src/common/*.cpp)
 
@@ -106,7 +106,7 @@ if(BROAPPS_ENABLE_API)
     # bronze (with brass, its code generator) through cmake/bro_deps.cmake: an
     # outer project's target, else ../bronze beside the top-level project, else
     # the pinned commit, fetched at configure.
-    bro_dependency(bronze GITHUB wlejon/bronze REF 15ce4cf5fc25d8afe03882985ae95adcba46a6a9 TARGET bronze_runtime_shared
+    bro_dependency(bronze GITHUB wlejon/bronze TARGET bronze_runtime_shared
                    OPTIONS BRONZE_BUILD_SHARED_RUNTIME=ON BRONZE_BUILD_TESTS=OFF)
 
     add_subdirectory(src/api)
