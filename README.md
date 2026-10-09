@@ -132,7 +132,7 @@ target_link_libraries(your_target PRIVATE broapps::broapps)
 The standalone Bronze JavaScript binding (`BROAPPS_ENABLE_API`, on when broapps is the
 top-level project) compiles `broapps_api` for the [bronze](https://github.com/wlejon/bronze)
 runtime. bronze (with brass) resolves like brovfs: `../bronze` beside the top-level project,
-else the pinned commit. Set `-DBROAPPS_ENABLE_API=OFF` to disable the JavaScript binding.
+else the head of its main branch. Set `-DBROAPPS_ENABLE_API=OFF` to disable the JavaScript binding.
 
 ## Tests & Verification
 

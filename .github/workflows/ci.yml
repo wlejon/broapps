@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 # broapps' one sibling, brovfs, and bronze with brass (the JavaScript runtime
-# broapps_api binds) come from the commits CMakeLists.txt pins
+# broapps_api binds) come from the heads of their main branches
 # (cmake/bro_deps.cmake), fetched at configure, so every job builds a plain
 # clone. brovfs's own api is off here (it defaults on only when brovfs is the
 # top-level project).

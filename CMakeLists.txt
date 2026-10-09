@@ -47,7 +47,7 @@ endfunction()
 # ---- brovfs --------------------------------------------------------------------
 # File types (MIME database) and directory watching. Resolved through cmake/bro_deps.cmake:
 # an existing `brovfs` target (a superbuild already added it) wins; otherwise the ../brovfs
-# working tree beside the top-level project; otherwise the pinned commit, fetched at configure.
+# working tree beside the top-level project; otherwise the head of its main, fetched at configure.
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/bro_deps.cmake)
 bro_dependency(brovfs GITHUB wlejon/brovfs OPTIONS BROVFS_BUILD_TESTS=OFF)
 
@@ -105,7 +105,7 @@ option(BROAPPS_ENABLE_API "Build Bronze JavaScript API" ${PROJECT_IS_TOP_LEVEL})
 if(BROAPPS_ENABLE_API)
     # bronze (with brass, its code generator) through cmake/bro_deps.cmake: an
     # outer project's target, else ../bronze beside the top-level project, else
-    # the pinned commit, fetched at configure.
+    # the head of its main, fetched at configure.
     bro_dependency(bronze GITHUB wlejon/bronze TARGET bronze_runtime_shared
                    OPTIONS BRONZE_BUILD_SHARED_RUNTIME=ON BRONZE_BUILD_TESTS=OFF)
 
