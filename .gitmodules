@@ -1,3 +1,0 @@
-[submodule "third_party/brovfs"]
-	path = third_party/brovfs
-	url = https://github.com/wlejon/brovfs.git

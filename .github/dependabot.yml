@@ -1,11 +1,9 @@
 version: 2
 
-# No package manifest to watch. The one sibling, brovfs, resolves from
-# ../brovfs first, and CI checks it out from main, so it is always current
-# there. The third_party/brovfs submodule is only the fallback for builds
-# without the sibling layout, and its pin is moved by hand, deliberately, when
-# broapps needs a newer brovfs. That leaves the pinned actions in
-# .github/workflows/.
+# No package manifest to watch. brovfs and bronze are bro_dependency() pins in
+# CMakeLists.txt, moved deliberately (bro's scripts/bump-deps.sh) when broapps
+# needs a newer one; a ../<name> working tree wins locally. That leaves the
+# pinned actions in .github/workflows/.
 updates:
   - package-ecosystem: github-actions
     directory: /

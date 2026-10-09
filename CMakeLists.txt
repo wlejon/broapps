@@ -45,28 +45,11 @@ function(broapps_warnings target)
 endfunction()
 
 # ---- brovfs --------------------------------------------------------------------
-# File types (MIME database) and directory watching. Resolved like every bro sibling: an
-# existing `brovfs` target (a superbuild already added it) wins; otherwise a standalone
-# checkout beside the top-level project (../brovfs, overridable with -DBROVFS_DIR=<path>);
-# otherwise the top-level project's third_party/brovfs submodule
-# (`git submodule update --init --recursive`).
-if(NOT TARGET brovfs)
-    set(BROVFS_DIR "${CMAKE_SOURCE_DIR}/../brovfs" CACHE PATH
-        "Path to standalone brovfs repo (set to a missing path to force submodule fallback)")
-    set(BROVFS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-    if(EXISTS "${BROVFS_DIR}/CMakeLists.txt")
-        message(STATUS "broapps: brovfs from ${BROVFS_DIR}")
-        add_subdirectory("${BROVFS_DIR}" "${CMAKE_BINARY_DIR}/brovfs" EXCLUDE_FROM_ALL)
-    elseif(EXISTS "${CMAKE_SOURCE_DIR}/third_party/brovfs/CMakeLists.txt")
-        message(STATUS "broapps: brovfs from ${CMAKE_SOURCE_DIR}/third_party/brovfs (submodule)")
-        add_subdirectory("${CMAKE_SOURCE_DIR}/third_party/brovfs" "${CMAKE_BINARY_DIR}/brovfs" EXCLUDE_FROM_ALL)
-    else()
-        message(FATAL_ERROR
-            "brovfs not found at ${BROVFS_DIR} or ${CMAKE_SOURCE_DIR}/third_party/brovfs. "
-            "Clone https://github.com/wlejon/brovfs next to this repo, run "
-            "`git submodule update --init --recursive`, or override with -DBROVFS_DIR=...")
-    endif()
-endif()
+# File types (MIME database) and directory watching. Resolved through cmake/bro_deps.cmake:
+# an existing `brovfs` target (a superbuild already added it) wins; otherwise the ../brovfs
+# working tree beside the top-level project; otherwise the pinned commit, fetched at configure.
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/bro_deps.cmake)
+bro_dependency(brovfs GITHUB wlejon/brovfs REF 634ee1228e55fd2aaa5d50437b5b571f45e9385d OPTIONS BROVFS_BUILD_TESTS=OFF)
 
 file(GLOB BROAPPS_SOURCES CONFIGURE_DEPENDS src/common/*.cpp)
 
@@ -120,25 +103,11 @@ endif()
 # what keeps the nested brovfs from demanding bronze here.)
 option(BROAPPS_ENABLE_API "Build Bronze JavaScript API" ${PROJECT_IS_TOP_LEVEL})
 if(BROAPPS_ENABLE_API)
-    if(NOT TARGET bronze_runtime_shared)
-        set(BRONZE_BUILD_SHARED_RUNTIME ON CACHE BOOL "" FORCE)
-        set(BRONZE_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-        if(DEFINED BRONZE_DIR AND EXISTS "${BRONZE_DIR}/CMakeLists.txt")
-            # Explicit BRONZE_DIR supplied
-        elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../bronze/CMakeLists.txt")
-            set(BRONZE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../bronze" CACHE PATH "bronze source tree")
-        elseif(EXISTS "${CMAKE_SOURCE_DIR}/../bronze/CMakeLists.txt")
-            set(BRONZE_DIR "${CMAKE_SOURCE_DIR}/../bronze" CACHE PATH "bronze source tree")
-        endif()
-
-        if(NOT BRONZE_DIR OR NOT EXISTS "${BRONZE_DIR}/CMakeLists.txt")
-            message(FATAL_ERROR
-                "bronze not found: check it out beside this repository (../bronze, with ../brass beside it) "
-                "or pass -DBRONZE_DIR=<path>.")
-        endif()
-
-        add_subdirectory("${BRONZE_DIR}" "${CMAKE_BINARY_DIR}/bronze-build" EXCLUDE_FROM_ALL)
-    endif()
+    # bronze (with brass, its code generator) through cmake/bro_deps.cmake: an
+    # outer project's target, else ../bronze beside the top-level project, else
+    # the pinned commit, fetched at configure.
+    bro_dependency(bronze GITHUB wlejon/bronze REF 15ce4cf5fc25d8afe03882985ae95adcba46a6a9 TARGET bronze_runtime_shared
+                   OPTIONS BRONZE_BUILD_SHARED_RUNTIME=ON BRONZE_BUILD_TESTS=OFF)
 
     add_subdirectory(src/api)
 endif()

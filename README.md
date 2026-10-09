@@ -93,22 +93,12 @@ broapps requires CMake 3.24+ and a C++20 compiler.
 
 ### Dependency Resolution (brovfs)
 
-broapps depends on **[brovfs](https://github.com/wlejon/brovfs)**. In accordance with the
-ecosystem dependency convention, CMake resolves `brovfs` in the following order:
+broapps depends on **[brovfs](https://github.com/wlejon/brovfs)**. There are no submodules:
+brovfs (and bronze, for the JavaScript binding) is a `bro_dependency()` pin in
+`CMakeLists.txt`, resolved through `cmake/bro_deps.cmake` in this order:
 1. **Existing CMake target:** Uses `brovfs` if already provided by a parent superbuild.
-2. **Sibling checkout (development default):** Located at `../brovfs` beside this repository (or via `-DBROVFS_DIR=<path>`).
-3. **Submodule layout (isolated / CI builds):** Embedded in `third_party/brovfs`.
-
-```bash
-# Sibling layout (development):
-git clone https://github.com/wlejon/broapps
-git clone https://github.com/wlejon/brovfs   # Sibling directory
-
-# Submodule layout (isolated clone):
-git clone --recursive https://github.com/wlejon/broapps
-# or initialize in an existing clone:
-git submodule update --init --recursive
-```
+2. **Working tree:** `../brovfs` beside the top-level project (or `-DFETCHCONTENT_SOURCE_DIR_BROVFS=<path>`).
+3. **Pinned commit:** fetched from GitHub at configure, so a plain `git clone` builds.
 
 ### Standalone Build
 
@@ -139,10 +129,10 @@ add_subdirectory(path/to/broapps)
 target_link_libraries(your_target PRIVATE broapps::broapps)
 ```
 
-The standalone Bronze JavaScript binding (`BROAPPS_ENABLE_API=ON`, default) compiles
-`broapps_api` for the [bronze](https://github.com/wlejon/bronze) runtime. It requires
-`../bronze` and `../brass` beside this repository or `-DBRONZE_DIR=<path>`. Set
-`-DBROAPPS_ENABLE_API=OFF` to disable the JavaScript binding.
+The standalone Bronze JavaScript binding (`BROAPPS_ENABLE_API`, on when broapps is the
+top-level project) compiles `broapps_api` for the [bronze](https://github.com/wlejon/bronze)
+runtime. bronze (with brass) resolves like brovfs: `../bronze` beside the top-level project,
+else the pinned commit. Set `-DBROAPPS_ENABLE_API=OFF` to disable the JavaScript binding.
 
 ## Tests & Verification
 
