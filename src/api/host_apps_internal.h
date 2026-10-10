@@ -25,6 +25,14 @@ std::shared_ptr<broapps::CatalogWatcher> activeCatalogWatcher();
 // entry dirs, hundreds of ms on the page's thread).
 std::shared_ptr<broapps::CatalogWatcher> existingCatalogWatcher();
 
+// The default catalog is built on a thread of its own (api.cpp).
+// catalogReady() -> Promise<void> that resolves once it is (bro.apps.ready);
+// catalogIsReady() says whether a call would answer without waiting;
+// drainCatalogReady() resolves the waiting promises, on the page's thread.
+Value catalogReady();
+bool catalogIsReady();
+void drainCatalogReady();
+
 // Conversions
 Value makeError(const std::string& msg);
 Value appInfoToJs(const broapps::AppInfo& app);

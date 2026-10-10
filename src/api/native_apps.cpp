@@ -287,6 +287,14 @@ void clearLaunchJobs() {
 void installAppsOnto(Value appsObj) {
     ObjectBuilder apps(appsObj);
 
+    // bro.apps.ready() -> Promise<void>: builds the catalog (and the MIME
+    // associations) on a thread of its own and resolves once it is built;
+    // after that every call answers at once. A call made before waits for
+    // the build instead.
+    apps.def("ready", 0, [](Value, std::span<const Value>) -> Value { return catalogReady(); });
+    // bro.apps.isReady -> boolean: whether calls answer without waiting.
+    apps.accessor("isReady", [](Value, std::span<const Value>) -> Value { return ev::fromBool(catalogIsReady()); });
+
     // bro.apps.list() -> AppInfo[]
     apps.def("list", 0, [](Value, std::span<const Value>) -> Value {
         auto catalog = activeCatalog();
@@ -426,7 +434,6 @@ void installAppsOnto(Value appsObj) {
         }
 
         try {
-            auto catalog = activeCatalog();
             auto launcher = activeLauncher();
             if (!launcher) {
                 ev::Persistent err(makeError("App launcher unavailable"));
@@ -434,31 +441,28 @@ void installAppsOnto(Value appsObj) {
                 return promiseP.get();
             }
 
-            std::optional<AppInfo> appOpt;
-            if (catalog) {
-                appOpt = catalog->find_by_id(id);
-            }
-
-            std::error_code ec;
-            bool isPathOrExe = !appOpt && (std::filesystem::exists(id, ec) || id.find('/') != std::string::npos || id.find('\\') != std::string::npos);
-
-            if (!appOpt && !isPathOrExe) {
-                ev::Persistent err(makeError("App not found: " + id));
-                ev::rejectPromise(promiseP.get(), err.get());
-                return promiseP.get();
-            }
-
             auto job = std::make_shared<LaunchJob>();
             job->promise = std::make_shared<ev::Persistent>(promiseP.get());
 
-            job->worker = std::thread([job, launcher, appOpt, id, isPathOrExe, scope]() {
+            // The id is looked up on the launch's own thread: the first
+            // lookup may wait for the catalog to be built, and the page's
+            // thread must not.
+            job->worker = std::thread([job, launcher, id, scope]() {
                 try {
+                    std::optional<AppInfo> appOpt;
+                    if (auto catalog = activeCatalog()) appOpt = catalog->find_by_id(id);
+                    std::error_code ec;
+                    const bool isPathOrExe = !appOpt && (std::filesystem::exists(id, ec) ||
+                                                         id.find('/') != std::string::npos ||
+                                                         id.find('\\') != std::string::npos);
                     if (appOpt) {
                         job->handle = launcher->launch(*appOpt, scope);
                     } else if (isPathOrExe) {
                         job->handle = launcher->launch_executable(id, scope);
+                    } else {
+                        job->error = "App not found: " + id;
                     }
-                    if (!job->handle) {
+                    if (!job->handle && job->error.empty()) {
                         job->error = "App launch returned null handle: " + id;
                     }
                 } catch (const std::exception& ex) {
