@@ -19,6 +19,11 @@ std::shared_ptr<broapps::IconResolver> activeIconResolver();
 std::shared_ptr<broapps::MimeService> activeMimeService();
 std::shared_ptr<broapps::RecentService> activeRecentService();
 std::shared_ptr<broapps::CatalogWatcher> activeCatalogWatcher();
+// The catalog watcher if one exists, else null: never builds a catalog. For
+// the per-frame drain and teardown, which run in every app whether or not it
+// uses bro.apps (building the catalog walks the Start Menu or the desktop
+// entry dirs, hundreds of ms on the page's thread).
+std::shared_ptr<broapps::CatalogWatcher> existingCatalogWatcher();
 
 // Conversions
 Value makeError(const std::string& msg);

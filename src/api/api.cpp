@@ -141,6 +141,11 @@ std::shared_ptr<broapps::CatalogWatcher> activeCatalogWatcher() {
     return g_default_catalog_watcher;
 }
 
+std::shared_ptr<broapps::CatalogWatcher> existingCatalogWatcher() {
+    std::lock_guard lock(g_services_mu);
+    return g_custom_catalog_watcher ? g_custom_catalog_watcher : g_default_catalog_watcher;
+}
+
 void setCatalogWatcher(std::shared_ptr<broapps::CatalogWatcher> watcher) {
     std::lock_guard lock(g_services_mu);
     g_custom_catalog_watcher = std::move(watcher);

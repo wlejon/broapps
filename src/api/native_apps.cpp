@@ -71,7 +71,7 @@ bool unwatchInternal(uint64_t token) {
     g_watchers.erase(it);
 
     if (g_watchers.empty()) {
-        auto w = activeCatalogWatcher();
+        auto w = existingCatalogWatcher();
         if (w && w->is_watching()) {
             w->stop();
         }
@@ -166,7 +166,7 @@ Value recentItemToJs(const broapps::RecentItem& item) {
 }
 
 void drainWatcherEvents() {
-    auto watcher = activeCatalogWatcher();
+    auto watcher = existingCatalogWatcher();
     if (!watcher) return;
 
     auto events = watcher->events().drain();
@@ -227,7 +227,7 @@ void drainWatcherEvents() {
 void clearWatchers() {
     std::lock_guard lock(g_watcher_mu);
     g_watchers.clear();
-    auto w = activeCatalogWatcher();
+    auto w = existingCatalogWatcher();
     if (w && w->is_watching()) {
         w->stop();
     }
