@@ -1,4 +1,5 @@
 #include "broapps/app_catalog.h"
+#include "broapps/icon_resolver.h"
 #include "tests/test_common.h"
 
 #include <algorithm>
@@ -74,6 +75,20 @@ int main() {
     // Test search functionality on live catalog
     auto search_results = catalog->search("Terminal");
     std::cout << "Search 'Terminal' found " << search_results.size() << " apps." << std::endl;
+
+    // Test icon extraction from .dll / .exe into cached .png files
+    auto resolver = IconResolver::create();
+    TEST_CHECK(resolver != nullptr);
+    auto resolved_dll = resolver->resolve_icon("shell32.dll,3", 48);
+    TEST_CHECK(resolved_dll.has_value());
+    TEST_CHECK(std::filesystem::exists(*resolved_dll));
+    TEST_CHECK(resolved_dll->extension() == ".png");
+    TEST_CHECK(std::filesystem::file_size(*resolved_dll) > 64);
+
+    auto resolved_exe = resolver->resolve_icon("notepad.exe", 48);
+    TEST_CHECK(resolved_exe.has_value());
+    TEST_CHECK(std::filesystem::exists(*resolved_exe));
+    TEST_CHECK(resolved_exe->extension() == ".png");
 
     std::cout << "test_win_catalog passed!" << std::endl;
     return 0;

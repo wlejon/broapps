@@ -88,7 +88,7 @@ target_link_libraries(broapps PUBLIC brovfs::brovfs)
 
 if(WIN32)
     target_compile_definitions(broapps PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE _WIN32_WINNT=0x0A00)
-    target_link_libraries(broapps PRIVATE user32 shell32 ole32 oleaut32 advapi32 propsys shlwapi)
+    target_link_libraries(broapps PRIVATE user32 gdi32 shell32 ole32 oleaut32 advapi32 propsys shlwapi)
 elseif(APPLE)
     target_compile_options(broapps PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>)
     target_link_libraries(broapps PUBLIC Threads::Threads PRIVATE "-framework CoreFoundation" "-framework Foundation" "-framework CoreServices")

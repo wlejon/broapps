@@ -123,11 +123,13 @@ std::optional<AppInfo> parse_lnk_file(const std::wstring& lnk_path) {
 
     if (icon_buf[0] != L'\0') {
         app.icon_name_or_path = wide_to_utf8(icon_buf);
-        if (icon_index > 0) {
+        if (icon_index != 0) {
             app.icon_name_or_path += "," + std::to_string(icon_index);
         }
     } else if (!target_path.empty()) {
         app.icon_name_or_path = target_path;
+    } else {
+        app.icon_name_or_path = app.shortcut_path;
     }
 
     app.id = sanitize_id(filename_stem);

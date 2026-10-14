@@ -113,6 +113,7 @@ std::vector<AppInfo> enumerate_apps_folder(bool include_nodisplay) {
 
         if (parsing_name.find('\\') != std::string::npos && parsing_name.ends_with(".exe")) {
             app.executable_path = parsing_name;
+            app.icon_name_or_path = parsing_name;
         }
 
         // Filtering
