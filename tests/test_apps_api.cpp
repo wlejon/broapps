@@ -252,18 +252,30 @@ int main() {
     // 8. Test launch Promise (success and rejection) and ProcessHandle HostClass
     std::cout << "Testing launch Promise and ProcessHandle..." << std::endl;
     {
+        auto pumpLaunch = [&]() {
+            for (int i = 0; i < 500; ++i) {
+                broapps::api::tickAppsAsync();
+                ev::drainMicrotasks();
+                auto rDone = evalScript("globalThis._launchSettled === true;");
+                if (!rDone.thrown && ev::isBool(rDone.value) && ev::toBool(rDone.value)) break;
+                std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            }
+        };
+
         // 8a. Rejection when app not found
         auto rReject = evalScript(
             "(function() {\n"
             "  globalThis._launchRejected = false;\n"
+            "  globalThis._launchSettled = false;\n"
             "  bro.apps.launch('definitely-not-an-app-id-xyz').catch((err) => {\n"
             "    globalThis._launchRejected = true;\n"
+            "    globalThis._launchSettled = true;\n"
             "  });\n"
             "  return true;\n"
             "})()\n"
         );
         CHECK(!rReject.thrown);
-        ev::drainMicrotasks();
+        pumpLaunch();
 
         auto rCheckReject = evalScript("globalThis._launchRejected === true;");
         CHECK(!rCheckReject.thrown && ev::toBool(rCheckReject.value));
@@ -273,6 +285,7 @@ int main() {
         auto rSuccess = evalScript(
             "(function() {\n"
             "  globalThis._launchSuccess = false;\n"
+            "  globalThis._launchSettled = false;\n"
             "  globalThis._procHandle = null;\n"
             "  bro.apps.launch('test-bro-calc.desktop', {\n"
             "    args: ['arg1', 'arg2'],\n"
@@ -281,14 +294,16 @@ int main() {
             "  }).then((handle) => {\n"
             "    globalThis._launchSuccess = true;\n"
             "    globalThis._procHandle = handle;\n"
+            "    globalThis._launchSettled = true;\n"
             "  }).catch((err) => {\n"
             "    globalThis._launchError = String(err);\n"
+            "    globalThis._launchSettled = true;\n"
             "  });\n"
             "  return true;\n"
             "})()\n"
         );
         CHECK(!rSuccess.thrown);
-        ev::drainMicrotasks();
+        pumpLaunch();
 
         auto rCheckSuccess = evalScript(
             "(function() {\n"

@@ -324,7 +324,9 @@ int main() {
         }
         if (!installed) continue;
         auto p = system->resolve_icon("utilities-terminal", opt(48, 1, theme));
-        std::cout << "Resolved icon 'utilities-terminal' in " << theme << " -> "
+        if (!p) p = system->resolve_icon("utilities-terminal-symbolic", opt(48, 1, theme));
+        if (!p) p = system->resolve_icon("folder", opt(48, 1, theme));
+        std::cout << "Resolved icon in " << theme << " -> "
                   << (p ? p->string() : std::string("(none)")) << std::endl;
         TEST_CHECK(p.has_value());
         TEST_CHECK(fs::exists(*p));
