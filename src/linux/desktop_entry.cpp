@@ -165,6 +165,8 @@ std::optional<AppInfo> parse_desktop_entry_string(
                 app.keywords = parse_semicolon_list(raw_val);
             } else if (key == "MimeType") {
                 app.supported_mime_types = parse_semicolon_list(raw_val);
+            } else if (key == "X-Bro-App") {
+                app.app_dir = unescape_string_value(raw_val);
             }
         } else if (current_group == Group::Action) {
             if (key == "Name") {
@@ -194,15 +196,38 @@ std::optional<AppInfo> parse_desktop_entry_string(
     }
 
     // Determine executable_path from Exec or TryExec
+    LaunchScope dummy_scope;
+    auto exec_tokens = app.exec_raw.empty()
+                           ? std::vector<std::string>{}
+                           : tokenize_and_expand_exec(app.exec_raw, app, dummy_scope);
     if (!app.try_exec.empty()) {
         app.executable_path = app.try_exec;
-    } else if (!app.exec_raw.empty()) {
-        // First token of Exec
-        LaunchScope dummy_scope;
-        auto tokens = tokenize_and_expand_exec(app.exec_raw, app, dummy_scope);
-        if (!tokens.empty()) {
-            app.executable_path = tokens.front();
+    } else if (!exec_tokens.empty()) {
+        app.executable_path = exec_tokens.front();
+    }
+
+    // Resolve bro app directory and inspect formal applet proof certificate (#102)
+    if (app.app_dir.empty()) {
+        std::error_code ec;
+        auto has_bro_artifacts = [&](const std::filesystem::path& dir) {
+            return !dir.empty() &&
+                   (std::filesystem::is_regular_file(dir / "app.cert.json", ec) ||
+                    std::filesystem::is_regular_file(dir / "bro.json", ec));
+        };
+        if (!app.working_directory.empty() && has_bro_artifacts(app.working_directory)) {
+            app.app_dir = app.working_directory;
+        } else {
+            for (size_t idx = 1; idx < exec_tokens.size(); ++idx) {
+                if (has_bro_artifacts(exec_tokens[idx])) {
+                    app.app_dir = exec_tokens[idx];
+                    break;
+                }
+            }
         }
+    }
+    if (!app.app_dir.empty()) {
+        app.certificate = inspect_applet_certificate(app.app_dir);
+        app.has_verified_certificate = app.certificate.verified;
     }
 
     return app;

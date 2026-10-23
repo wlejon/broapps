@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -12,6 +13,25 @@ struct DesktopAction {
     std::string exec;
     std::string icon;
 };
+
+struct AppletCertificateInfo {
+    bool present = false;
+    bool verified = false;
+    uint32_t hazards = 0;
+    bool proofs_valid = false;
+    std::string module_hash;
+    std::vector<std::string> capabilities;
+    std::vector<std::string> manifest_capabilities;
+    std::string cert_path;
+    std::string error;
+};
+
+/// Compute the 64-bit FNV-1a hex digest (16 lowercase hex chars) of `file_path`.
+std::string compute_fnv1a64_hex(std::string_view file_path, bool* ok_out = nullptr);
+
+/// Inspect and verify `<app_dir>/app.cert.json` (or a direct `.cert.json` path)
+/// and `<app_dir>/bro.json` capability manifest (#102).
+AppletCertificateInfo inspect_applet_certificate(std::string_view app_dir_or_cert_path);
 
 struct AppInfo {
     // Canonical unique identifier:
@@ -40,6 +60,11 @@ struct AppInfo {
     bool is_terminal = false;
     bool is_nodisplay = false;
     bool is_packaged = false;
+
+    // eBPF-style verified applet certificate (#102)
+    std::string app_dir;
+    bool has_verified_certificate = false;
+    AppletCertificateInfo certificate;
 
     // Platform-specific metadata
     std::string desktop_file_path;      // Linux .desktop file path
