@@ -181,6 +181,47 @@ elseif(BROAPPS_ENABLE_API)
     endif()
 endif()
 
+# The access gates' test drives bro.apps against fake services only, so unlike
+# broapps_test_api it runs on every platform.
+if(BROAPPS_ENABLE_API)
+    add_executable(broapps_test_api_gate
+        test_apps_api_gate.cpp
+    )
+    target_include_directories(broapps_test_api_gate PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/api
+        ${PROJECT_SOURCE_DIR}/src
+    )
+    target_link_libraries(broapps_test_api_gate PRIVATE
+        broapps_api
+        broapps
+        bronze_runtime_shared
+    )
+    broapps_warnings(broapps_test_api_gate)
+    if(WIN32)
+        target_compile_definitions(broapps_test_api_gate PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE _WIN32_WINNT=0x0A00)
+        add_custom_command(TARGET broapps_test_api_gate POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:bronze_runtime_shared>
+                $<TARGET_FILE_DIR:broapps_test_api_gate>
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_LINKER_FILE:bronze_runtime_shared>
+                $<TARGET_FILE_DIR:broapps_test_api_gate>
+        )
+    endif()
+
+    if(NOT BRASS_HOST_BACKEND)
+        message(STATUS "broapps: broapps_test_api_gate not registered (brass has no code generator for this target)")
+    else()
+        add_test(NAME broapps_test_api_gate COMMAND broapps_test_api_gate)
+        set_tests_properties(broapps_test_api_gate PROPERTIES TIMEOUT 60)
+        if(WIN32)
+            set_tests_properties(broapps_test_api_gate PROPERTIES
+                ENVIRONMENT "PATH=$<TARGET_FILE_DIR:bronze_runtime_shared>;$<TARGET_FILE_DIR:broapps_test_api_gate>;$ENV{PATH}")
+        endif()
+    endif()
+endif()
+
 # TEST_SKIP (test_common.h) exits 77 when a tool or platform feature is absent: ctest reports
 # that as a skip, not a failure.
 get_property(_broapps_tests DIRECTORY PROPERTY TESTS)

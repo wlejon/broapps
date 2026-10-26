@@ -79,6 +79,16 @@ bool unwatchInternal(uint64_t token) {
     return true;
 }
 
+// setDefaultApp / setDefaultAppForMime: a change to the user's desktop
+// configuration, so the config write gate is asked first.
+Value setDefaultAppFor(const std::string& mimeType, const std::string& appId) {
+    std::string what = "set the default app for " + mimeType + " to " + appId;
+    if (std::string refused = configWriteRefusal(what); !refused.empty()) return throwAccessError(refused);
+    auto mimeService = activeMimeService();
+    if (!mimeService) return ev::fromBool(false);
+    return ev::fromBool(mimeService->set_default_app_for_mime(mimeType, appId));
+}
+
 } // namespace
 
 Value makeError(const std::string& msg) {
@@ -437,6 +447,14 @@ void installAppsOnto(Value appsObj) {
             }
         }
 
+        // Asked here, on the page's thread, before the launch is queued: the
+        // gate may block to ask the user, and the worker must not run unasked.
+        if (std::string refused = spawnRefusal(launchDescription(id, scope.arguments)); !refused.empty()) {
+            ev::Persistent err(newAccessError(refused));
+            ev::rejectPromise(promiseP.get(), err.get());
+            return promiseP.get();
+        }
+
         try {
             auto launcher = activeLauncher();
             if (!launcher) {
@@ -542,12 +560,7 @@ void installAppsOnto(Value appsObj) {
         if (args.size() < 2 || !ev::isString(args[0]) || !ev::isString(args[1])) {
             return ev::fromBool(false);
         }
-        std::string mimeType = ev::toUtf8(args[0]);
-        std::string appId = ev::toUtf8(args[1]);
-        auto mimeService = activeMimeService();
-        if (!mimeService) return ev::fromBool(false);
-
-        return ev::fromBool(mimeService->set_default_app_for_mime(mimeType, appId));
+        return setDefaultAppFor(ev::toUtf8(args[0]), ev::toUtf8(args[1]));
     });
 
     // bro.apps.setDefaultApp(mimeType, appId) -> boolean (alias)
@@ -555,12 +568,7 @@ void installAppsOnto(Value appsObj) {
         if (args.size() < 2 || !ev::isString(args[0]) || !ev::isString(args[1])) {
             return ev::fromBool(false);
         }
-        std::string mimeType = ev::toUtf8(args[0]);
-        std::string appId = ev::toUtf8(args[1]);
-        auto mimeService = activeMimeService();
-        if (!mimeService) return ev::fromBool(false);
-
-        return ev::fromBool(mimeService->set_default_app_for_mime(mimeType, appId));
+        return setDefaultAppFor(ev::toUtf8(args[0]), ev::toUtf8(args[1]));
     });
 
     // bro.apps.getAppsForMime(mimeType) -> AppInfo[]
@@ -611,6 +619,9 @@ void installAppsOnto(Value appsObj) {
         if (args.size() > 1 && ev::isString(args[1])) {
             appId = ev::toUtf8(args[1]);
         }
+        if (std::string refused = configWriteRefusal("add " + path + " to the recent files"); !refused.empty()) {
+            return throwAccessError(refused);
+        }
         auto recentService = activeRecentService();
         if (!recentService) return ev::fromBool(false);
         return ev::fromBool(recentService->add_recent_item(path, appId));
@@ -618,6 +629,9 @@ void installAppsOnto(Value appsObj) {
 
     // bro.apps.clearRecent() -> boolean
     apps.def("clearRecent", 0, [](Value, std::span<const Value>) -> Value {
+        if (std::string refused = configWriteRefusal("clear the recent files"); !refused.empty()) {
+            return throwAccessError(refused);
+        }
         auto recentService = activeRecentService();
         if (!recentService) return ev::fromBool(false);
         return ev::fromBool(recentService->clear_recent_items());

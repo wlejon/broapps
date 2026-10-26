@@ -33,6 +33,18 @@ Value catalogReady();
 bool catalogIsReady();
 void drainCatalogReady();
 
+// The access gates' helpers (access_gate.cpp; the gates themselves are in api.h).
+/// The spawn gate's answer for `what`: "" when allowed.
+std::string spawnRefusal(const std::string& what);
+/// The config write gate's answer for `what`: "" when allowed.
+std::string configWriteRefusal(const std::string& what);
+/// "launch <id>" and the arguments, as the spawn gate is asked.
+std::string launchDescription(const std::string& id, const std::vector<std::string>& args);
+/// The refusal as an Error: message and code "EACCES". Fresh: root it.
+Value newAccessError(const std::string& refusal);
+/// Throws newAccessError into the running program.
+Value throwAccessError(const std::string& refusal);
+
 // Conversions
 Value makeError(const std::string& msg);
 Value appInfoToJs(const broapps::AppInfo& app);
