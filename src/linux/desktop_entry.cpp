@@ -206,28 +206,22 @@ std::optional<AppInfo> parse_desktop_entry_string(
         app.executable_path = exec_tokens.front();
     }
 
-    // Resolve bro app directory and inspect formal applet proof certificate (#102)
+    // Resolve the bro app directory: the folder holding a bro.json
     if (app.app_dir.empty()) {
         std::error_code ec;
-        auto has_bro_artifacts = [&](const std::filesystem::path& dir) {
-            return !dir.empty() &&
-                   (std::filesystem::is_regular_file(dir / "app.cert.json", ec) ||
-                    std::filesystem::is_regular_file(dir / "bro.json", ec));
+        auto is_bro_app_dir = [&](const std::filesystem::path& dir) {
+            return !dir.empty() && std::filesystem::is_regular_file(dir / "bro.json", ec);
         };
-        if (!app.working_directory.empty() && has_bro_artifacts(app.working_directory)) {
+        if (!app.working_directory.empty() && is_bro_app_dir(app.working_directory)) {
             app.app_dir = app.working_directory;
         } else {
             for (size_t idx = 1; idx < exec_tokens.size(); ++idx) {
-                if (has_bro_artifacts(exec_tokens[idx])) {
+                if (is_bro_app_dir(exec_tokens[idx])) {
                     app.app_dir = exec_tokens[idx];
                     break;
                 }
             }
         }
-    }
-    if (!app.app_dir.empty()) {
-        app.certificate = inspect_applet_certificate(app.app_dir);
-        app.has_verified_certificate = app.certificate.verified;
     }
 
     return app;

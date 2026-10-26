@@ -93,24 +93,6 @@ Value makeError(const std::string& msg) {
     return text.get();
 }
 
-Value certificateInfoToJs(const broapps::AppletCertificateInfo& cert) {
-    ObjectBuilder b;
-    b.set("present", cert.present);
-    b.set("verified", cert.verified);
-    b.set("hazards", static_cast<double>(cert.hazards));
-    b.set("proofsValid", cert.proofs_valid);
-    b.set("proofs_valid", cert.proofs_valid);
-    b.set("moduleHash", cert.module_hash);
-    b.set("module_hash", cert.module_hash);
-    b.set("capabilities", makeStringArray(cert.capabilities));
-    b.set("manifestCapabilities", makeStringArray(cert.manifest_capabilities));
-    b.set("manifest_capabilities", makeStringArray(cert.manifest_capabilities));
-    b.set("certPath", cert.cert_path);
-    b.set("cert_path", cert.cert_path);
-    b.set("error", cert.error);
-    return b.build();
-}
-
 Value appInfoToJs(const broapps::AppInfo& app) {
     ObjectBuilder b;
     b.set("id", app.id);
@@ -137,19 +119,9 @@ Value appInfoToJs(const broapps::AppInfo& app) {
     b.set("is_nodisplay", app.is_nodisplay);
     b.set("packaged", app.is_packaged);
     b.set("is_packaged", app.is_packaged);
-    b.set("hasVerifiedCertificate", app.has_verified_certificate);
-    b.set("has_verified_certificate", app.has_verified_certificate);
     if (!app.app_dir.empty()) {
         b.set("appDir", app.app_dir);
         b.set("app_dir", app.app_dir);
-    }
-    if (app.certificate.present || !app.certificate.error.empty()) {
-        ev::Persistent certVal(certificateInfoToJs(app.certificate));
-        b.set("certificateInfo", certVal.get());
-        b.set("certificate_info", certVal.get());
-    } else {
-        b.set("certificateInfo", ev::null());
-        b.set("certificate_info", ev::null());
     }
 
     if (!app.actions.empty()) {
@@ -736,28 +708,6 @@ void installAppsOnto(Value appsObj) {
         return arr.get();
     });
 
-    // bro.apps.verifyCertificate(appIdOrDir) -> CertificateInfo
-    auto verifyCertFn = [](Value, std::span<const Value> args) -> Value {
-        if (args.empty() || !ev::isString(args[0])) {
-            return certificateInfoToJs(broapps::AppletCertificateInfo{});
-        }
-        std::string target = ev::toUtf8(args[0]);
-        if (target.empty()) {
-            return certificateInfoToJs(broapps::AppletCertificateInfo{});
-        }
-        if (auto catalog = activeCatalog()) {
-            if (auto app = catalog->find_by_id(target)) {
-                if (!app->app_dir.empty()) {
-                    return certificateInfoToJs(broapps::inspect_applet_certificate(app->app_dir));
-                }
-                return certificateInfoToJs(app->certificate);
-            }
-        }
-        return certificateInfoToJs(broapps::inspect_applet_certificate(target));
-    };
-    apps.def("verifyCertificate", 1, verifyCertFn);
-    apps.def("inspectCertificate", 1, verifyCertFn);
-
     // bro.apps.getCapabilities() -> { launcher, catalog }
     apps.def("getCapabilities", 0, [](Value, std::span<const Value>) -> Value {
         auto lcaps = query_launcher_capabilities();
@@ -778,7 +728,6 @@ void installAppsOnto(Value appsObj) {
         catalog.set("supportsMimeTypes", ccaps.supports_mime_types);
         catalog.set("supportsActions", ccaps.supports_actions);
         catalog.set("supportsPackagedApps", ccaps.supports_packaged_apps);
-        catalog.set("supportsVerifiedCertificates", true);
         b.set("catalog", catalog.build());
 
         return b.build();

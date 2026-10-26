@@ -60,26 +60,11 @@ int main() {
     std::filesystem::create_directories(tmp_dir / "config");
     std::filesystem::create_directories(tmp_dir / "data");
 
-    auto verified_app_dir = tmp_dir / "verified-applet";
-    std::filesystem::create_directories(verified_app_dir);
+    auto bro_app_dir = tmp_dir / "bro-calc";
+    std::filesystem::create_directories(bro_app_dir);
     {
-        std::ofstream js(verified_app_dir / "main.js", std::ios::binary);
-        js << "export function add(a, b) { return a + b; }\n";
-    }
-    std::string main_hash = broapps::compute_fnv1a64_hex((verified_app_dir / "main.js").string());
-    {
-        std::ofstream bj(verified_app_dir / "bro.json", std::ios::binary);
-        bj << "{\n  \"name\": \"Bro Calculator\",\n  \"verifiedApplet\": true,\n  \"capabilities\": [\"bro.ui\", \"bro.audio\"]\n}\n";
-    }
-    {
-        std::ofstream cj(verified_app_dir / "app.cert.json", std::ios::binary);
-        cj << "{\n"
-           << "  \"verified\": true,\n"
-           << "  \"hazards\": 0,\n"
-           << "  \"proofsValid\": true,\n"
-           << "  \"moduleHash\": \"" << main_hash << "\",\n"
-           << "  \"capabilities\": [\"bro.ui.window\"]\n"
-           << "}\n";
+        std::ofstream bj(bro_app_dir / "bro.json", std::ios::binary);
+        bj << "{\n  \"name\": \"Bro Calculator\"\n}\n";
     }
 
     auto test_desktop_file = tmp_dir / "test-bro-calc.desktop";
@@ -98,7 +83,7 @@ int main() {
             << "Keywords=math;calc;\n"
             << "MimeType=application/x-calc;text/plain;\n"
             << "NoDisplay=false\n"
-            << "X-Bro-App=" << verified_app_dir.string() << "\n"
+            << "X-Bro-App=" << bro_app_dir.string() << "\n"
             << "\n"
             << "[Desktop Action Quick]\n"
             << "Name=Quick Math\n"
@@ -132,8 +117,7 @@ int main() {
         "getDefaultApp", "setDefaultAppForMime", "setDefaultApp",
         "getAppsForMime", "getRecent", "addRecent",
         "clearRecent", "watch", "unwatch", "refresh",
-        "findByCategory", "findByMimeType", "getCapabilities",
-        "verifyCertificate", "inspectCertificate"
+        "findByCategory", "findByMimeType", "getCapabilities"
     };
     for (const char* m : methods) {
         auto fn = ev::getProperty(apps.get(), m);
@@ -167,12 +151,7 @@ int main() {
             "  if (!Array.isArray(app.mimeTypes) || !app.mimeTypes.includes('application/x-calc')) return false;\n"
             "  if (!Array.isArray(app.actions) || app.actions.length !== 1) return false;\n"
             "  if (app.actions[0].name !== 'Quick Math') return false;\n"
-            "  if (app.hasVerifiedCertificate !== true) return false;\n"
-            "  if (!app.certificateInfo || app.certificateInfo.verified !== true) return false;\n"
-            "  if (app.certificateInfo.hazards !== 0 || app.certificateInfo.proofsValid !== true) return false;\n"
-            "  if (!Array.isArray(app.certificateInfo.capabilities) || !app.certificateInfo.capabilities.includes('bro.ui.window')) return false;\n"
-            "  const vc = bro.apps.verifyCertificate('test-bro-calc.desktop');\n"
-            "  if (!vc || vc.verified !== true || vc.hazards !== 0) return false;\n"
+            "  if (typeof app.appDir !== 'string' || !app.appDir.endsWith('/bro-calc')) return false;\n"
             "  \n"
             "  const sResults = bro.apps.search('Calculator');\n"
             "  if (!Array.isArray(sResults) || sResults.length === 0) return false;\n"
@@ -203,7 +182,6 @@ int main() {
             "  if (!caps.launcher || typeof caps.launcher !== 'object') return false;\n"
             "  if (!caps.catalog || typeof caps.catalog !== 'object') return false;\n"
             "  if (typeof caps.catalog.supportsCategories !== 'boolean') return false;\n"
-            "  if (caps.catalog.supportsVerifiedCertificates !== true) return false;\n"
             "  if (typeof caps.launcher.hasTerminalLaunch !== 'boolean') return false;\n"
             "  return true;\n"
             "})()\n"
@@ -211,53 +189,6 @@ int main() {
         CHECK(!r.thrown);
         CHECK(ev::isBool(r.value) && ev::toBool(r.value));
         std::cout << "  getCapabilities [PASS]" << std::endl;
-
-        // Test tampered moduleHash and unauthorized capability rejection via inspect_applet_certificate
-        auto tampered_dir = tmp_dir / "tampered-applet";
-        std::filesystem::create_directories(tampered_dir);
-        {
-            std::ofstream js(tampered_dir / "main.js", std::ios::binary);
-            js << "export function run() { return 42; }\n";
-            std::ofstream bj(tampered_dir / "bro.json", std::ios::binary);
-            bj << "{\n  \"verifiedApplet\": true,\n  \"capabilities\": [\"bro.ui\"]\n}\n";
-            std::ofstream cj(tampered_dir / "app.cert.json", std::ios::binary);
-            cj << "{\n"
-               << "  \"verified\": true,\n"
-               << "  \"hazards\": 0,\n"
-               << "  \"proofsValid\": true,\n"
-               << "  \"moduleHash\": \"deadbeef00000000\",\n"
-               << "  \"capabilities\": [\"bro.ui\"]\n"
-               << "}\n";
-        }
-        auto tampered_info = broapps::inspect_applet_certificate(tampered_dir.string());
-        CHECK(tampered_info.present == true);
-        CHECK(tampered_info.verified == false);
-        CHECK(tampered_info.error.find("hash mismatch") != std::string::npos);
-
-        auto unauth_dir = tmp_dir / "unauth-applet";
-        std::filesystem::create_directories(unauth_dir);
-        {
-            std::ofstream js(unauth_dir / "main.js", std::ios::binary);
-            js << "export function run() { return 42; }\n";
-        }
-        std::string unauth_hash = broapps::compute_fnv1a64_hex((unauth_dir / "main.js").string());
-        {
-            std::ofstream bj(unauth_dir / "bro.json", std::ios::binary);
-            bj << "{\n  \"verifiedApplet\": true,\n  \"capabilities\": [\"bro.ui\"]\n}\n";
-            std::ofstream cj(unauth_dir / "app.cert.json", std::ios::binary);
-            cj << "{\n"
-               << "  \"verified\": true,\n"
-               << "  \"hazards\": 0,\n"
-               << "  \"proofsValid\": true,\n"
-               << "  \"moduleHash\": \"" << unauth_hash << "\",\n"
-               << "  \"capabilities\": [\"child_process\"]\n"
-               << "}\n";
-        }
-        auto unauth_info = broapps::inspect_applet_certificate(unauth_dir.string());
-        CHECK(unauth_info.present == true);
-        CHECK(unauth_info.verified == false);
-        CHECK(unauth_info.error.find("unauthorized capability") != std::string::npos);
-        std::cout << "  applet certificate verification & rejection [PASS]" << std::endl;
     }
 
     // 5. Test MIME associations
