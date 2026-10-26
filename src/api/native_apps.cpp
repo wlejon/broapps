@@ -80,10 +80,30 @@ bool unwatchInternal(uint64_t token) {
 }
 
 // setDefaultApp / setDefaultAppForMime: a change to the user's desktop
-// configuration, so the config write gate is asked first.
+// configuration, so DesktopWrite is asked first.
+// getDefaultApp / getAppsForMime take a MIME type or a file's path. A path is
+// read (its type is sniffed), so it asks Read; a MIME type reads nothing of the
+// program's. Something shaped "type/subtype" is a MIME type unless a file of that
+// relative name exists.
+bool looksLikeMime(const std::string& s) {
+    const size_t slash = s.find('/');
+    return slash != std::string::npos && slash != 0 && slash + 1 < s.size() &&
+           s.find('/', slash + 1) == std::string::npos && s.find_first_of("\\:") == std::string::npos &&
+           s[0] != '.';
+}
+
+// Whether `arg` is to be looked up as a file; *refused is the gate's refusal
+// (and *absolute its path) when it is and may not be read.
+bool fileArgument(const std::string& arg, std::string* refused, std::string* absolute) {
+    std::error_code ec;
+    if (looksLikeMime(arg) && !std::filesystem::exists(utf8Path(arg), ec)) return false;
+    *refused = pathReadRefusal(arg, absolute);
+    return true;
+}
+
 Value setDefaultAppFor(const std::string& mimeType, const std::string& appId) {
     std::string what = "set the default app for " + mimeType + " to " + appId;
-    if (std::string refused = configWriteRefusal(what); !refused.empty()) return throwAccessError(refused);
+    if (std::string refused = desktopWriteRefusal(what); !refused.empty()) return throwAccessError(refused);
     auto mimeService = activeMimeService();
     if (!mimeService) return ev::fromBool(false);
     return ev::fromBool(mimeService->set_default_app_for_mime(mimeType, appId));
@@ -542,13 +562,17 @@ void installAppsOnto(Value appsObj) {
     apps.def("getDefaultApp", 1, [](Value, std::span<const Value> args) -> Value {
         if (args.empty() || !ev::isString(args[0])) return ev::null();
         std::string mimeType = ev::toUtf8(args[0]);
+        if (std::string refused = desktopReadRefusal("read the default app for " + mimeType); !refused.empty()) {
+            return throwAccessError(refused);
+        }
+        std::string refusedPath, absolute;
+        const bool isFile = fileArgument(mimeType, &refusedPath, &absolute);
+        if (!refusedPath.empty()) return throwAccessError(refusedPath, absolute);
         auto mimeService = activeMimeService();
         if (!mimeService) return ev::null();
 
         auto app = mimeService->get_default_app_for_mime(mimeType);
-        if (!app && (mimeType.find('/') == std::string::npos || std::filesystem::exists(mimeType))) {
-            app = mimeService->get_default_app_for_file(mimeType);
-        }
+        if (!app && isFile) app = mimeService->get_default_app_for_file(mimeType);
         if (app) {
             return appInfoToJs(*app);
         }
@@ -575,13 +599,14 @@ void installAppsOnto(Value appsObj) {
     apps.def("getAppsForMime", 1, [](Value, std::span<const Value> args) -> Value {
         if (args.empty() || !ev::isString(args[0])) return ev::makeArray(0);
         std::string mimeType = ev::toUtf8(args[0]);
+        std::string refusedPath, absolute;
+        const bool isFile = fileArgument(mimeType, &refusedPath, &absolute);
+        if (!refusedPath.empty()) return throwAccessError(refusedPath, absolute);
         auto mimeService = activeMimeService();
         if (!mimeService) return ev::makeArray(0);
 
         auto appsList = mimeService->get_candidates_for_mime(mimeType);
-        if (appsList.empty() && (mimeType.find('/') == std::string::npos || std::filesystem::exists(mimeType))) {
-            appsList = mimeService->get_candidates_for_file(mimeType);
-        }
+        if (appsList.empty() && isFile) appsList = mimeService->get_candidates_for_file(mimeType);
 
         ev::Persistent arr(ev::makeArray(static_cast<uint32_t>(appsList.size())));
         for (uint32_t i = 0; i < appsList.size(); ++i) {
@@ -597,6 +622,9 @@ void installAppsOnto(Value appsObj) {
         if (!args.empty() && ev::isNumber(args[0])) {
             double d = ev::toDouble(args[0]);
             if (d > 0) limit = static_cast<size_t>(d);
+        }
+        if (std::string refused = desktopReadRefusal("read the recent files"); !refused.empty()) {
+            return throwAccessError(refused);
         }
 
         auto recentService = activeRecentService();
@@ -619,7 +647,7 @@ void installAppsOnto(Value appsObj) {
         if (args.size() > 1 && ev::isString(args[1])) {
             appId = ev::toUtf8(args[1]);
         }
-        if (std::string refused = configWriteRefusal("add " + path + " to the recent files"); !refused.empty()) {
+        if (std::string refused = desktopWriteRefusal("add " + path + " to the recent files"); !refused.empty()) {
             return throwAccessError(refused);
         }
         auto recentService = activeRecentService();
@@ -629,7 +657,7 @@ void installAppsOnto(Value appsObj) {
 
     // bro.apps.clearRecent() -> boolean
     apps.def("clearRecent", 0, [](Value, std::span<const Value>) -> Value {
-        if (std::string refused = configWriteRefusal("clear the recent files"); !refused.empty()) {
+        if (std::string refused = desktopWriteRefusal("clear the recent files"); !refused.empty()) {
             return throwAccessError(refused);
         }
         auto recentService = activeRecentService();

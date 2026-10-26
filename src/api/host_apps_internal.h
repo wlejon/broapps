@@ -3,6 +3,7 @@
 #include "embed/embed.h"
 #include "broapps/broapps.h"
 
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <vector>
@@ -33,17 +34,24 @@ Value catalogReady();
 bool catalogIsReady();
 void drainCatalogReady();
 
-// The access gates' helpers (access_gate.cpp; the gates themselves are in api.h).
-/// The spawn gate's answer for `what`: "" when allowed.
+// Asking the host's access gate (access_gate.cpp; embed/embed_access.h; what
+// each native asks is in api.h, "Access"). Each answers "" when allowed.
+/// Spawn: `what` is the program and its arguments as one line.
 std::string spawnRefusal(const std::string& what);
-/// The config write gate's answer for `what`: "" when allowed.
-std::string configWriteRefusal(const std::string& what);
-/// "launch <id>" and the arguments, as the spawn gate is asked.
+/// DesktopRead: `what` describes the desktop configuration read.
+std::string desktopReadRefusal(const std::string& what);
+/// DesktopWrite: `what` describes the change.
+std::string desktopWriteRefusal(const std::string& what);
+/// A UTF-8 string as a path.
+std::filesystem::path utf8Path(const std::string& s);
+/// Read of `path`, made absolute and lexically normal into `*absolute`.
+std::string pathReadRefusal(const std::string& path, std::string* absolute);
+/// "<id or path>" and the arguments, as Spawn is asked.
 std::string launchDescription(const std::string& id, const std::vector<std::string>& args);
-/// The refusal as an Error: message and code "EACCES". Fresh: root it.
-Value newAccessError(const std::string& refusal);
+/// The refusal as an Error: message, code "EACCES", `path` when not empty. Fresh: root it.
+Value newAccessError(const std::string& refusal, const std::string& path = {});
 /// Throws newAccessError into the running program.
-Value throwAccessError(const std::string& refusal);
+Value throwAccessError(const std::string& refusal, const std::string& path = {});
 
 // Conversions
 Value makeError(const std::string& msg);

@@ -60,36 +60,32 @@ void setCatalogWatcher(std::shared_ptr<broapps::CatalogWatcher> watcher);
 /// Gets the catalog watcher currently used by the API.
 std::shared_ptr<broapps::CatalogWatcher> getCatalogWatcher();
 
-// ---- Access gates ---------------------------------------------------------------
+// ---- Access -----------------------------------------------------------------------
 //
-// Whether a program may start other programs, or change the user's desktop
-// configuration, is the host's decision, not broapps's: the host knows which app
-// is running and what it was granted. With no gate set (the default), everything
-// is allowed and nothing below changes.
+// Whether a program may start other programs, or read or change the user's
+// desktop configuration, is the host's decision, not broapps's: the natives below
+// ask the host's one access gate, bronze::embed::checkAccess
+// (embed/embed_access.h), on the JS thread that made the call, synchronously,
+// before any work is queued. With no gate installed everything is allowed and
+// nothing below changes.
 //
-// Each gate answers "" to allow, or the sentence the refusal carries (naming what
-// the app lacks and what it asked for). A gate is called on the JS thread that
-// made the call, synchronously, before any work is queued, so it may block to ask
-// the user; it must be thread-safe. A refusal is an Error whose `message` is
-// exactly the gate's sentence and whose `code` is "EACCES": thrown by a
-// synchronous native, the promise rejected with it by launch.
-
-/// `what` describes the program to start, as one line: "launch <id or path>",
-/// followed by the launch's arguments (an argument holding whitespace or nothing
-/// is quoted). Asked by bro.apps.launch, the one native that starts a program.
-using SpawnGate = std::function<std::string(const std::string& what)>;
-
-/// Installs `gate` process-wide (an empty function removes it).
-void setSpawnGate(SpawnGate gate);
-
-/// `what` describes the change to the user's desktop configuration:
-///   setDefaultApp / setDefaultAppForMime  "set the default app for <mime> to <appId>"
-///   addRecent                             "add <path> to the recent files"
-///   clearRecent                           "clear the recent files"
-using WriteGate = std::function<std::string(const std::string& what)>;
-
-/// Installs `gate` process-wide (an empty function removes it).
-void setConfigWriteGate(WriteGate gate);
+//   launch                 Spawn "<id or path>" and the launch's arguments, one
+//                          line (an argument holding whitespace or nothing is
+//                          quoted): the one native that starts a program
+//   getRecent              DesktopRead "read the recent files"
+//   getDefaultApp          DesktopRead "read the default app for <mime or path>"
+//   setDefaultApp / setDefaultAppForMime
+//                          DesktopWrite "set the default app for <mime> to <appId>"
+//   addRecent              DesktopWrite "add <path> to the recent files"
+//   clearRecent            DesktopWrite "clear the recent files"
+//   getDefaultApp / getAppsForMime given a file's path (anything but a
+//                          "type/subtype" MIME type): Read of the path, which is
+//                          sniffed
+//
+// A refusal is bronze::embed::newAccessError: an Error whose `message` is the
+// gate's sentence (named PermissionRevoked for a grant taken back), `code` is
+// "EACCES" and, for a path, `path`: thrown by a synchronous native, launch's
+// promise rejected with it.
 
 } // namespace broapps::api
 
@@ -108,5 +104,3 @@ using broapps::api::setRecentService;
 using broapps::api::getRecentService;
 using broapps::api::setCatalogWatcher;
 using broapps::api::getCatalogWatcher;
-using broapps::api::setSpawnGate;
-using broapps::api::setConfigWriteGate;
